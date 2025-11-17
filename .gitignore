@@ -43,4 +43,38 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
-SAMPLE
+
+# Firebase configuration files (contains sensitive keys)
+android/google-services.json
+ios/Runner/GoogleService-Info.plist
+ios/firebase_app_id_file.json
+lib/firebase_options.dart
+
+# Android local properties
+android/local.properties
+android/.gradle/
+android/.kotlin/
+
+# iOS/macOS
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+macos/Pods/
+macos/.symlinks/
+
+# Web
+web/firebase-config.js
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+*.code-workspace
+
+# OS
+.DS_Store
+Thumbs.db
