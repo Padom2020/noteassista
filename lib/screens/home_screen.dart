@@ -3,6 +3,7 @@ import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
 import '../models/note_model.dart';
 import 'add_note_screen.dart';
+import 'edit_note_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -56,14 +57,29 @@ class _HomeScreenState extends State<HomeScreen> {
       await _firestoreService.deleteNote(userId, noteId);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Note deleted successfully')),
+          const SnackBar(
+            content: Text('Note deleted successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } on Exception catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceFirst('Exception: ', '')),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error deleting note: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error deleting note: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }
@@ -72,27 +88,59 @@ class _HomeScreenState extends State<HomeScreen> {
     final userId = _authService.currentUser?.uid ?? '';
     try {
       await _firestoreService.toggleNoteStatus(userId, noteId, !currentStatus);
+    } on Exception catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceFirst('Exception: ', '')),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error updating note: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error updating note: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }
 
   void _navigateToEditNote(NoteModel note) {
-    // Navigation to EditNoteScreen will be implemented when EditNoteScreen is created
-    // For now, show a placeholder message
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Edit screen not yet implemented')),
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => EditNoteScreen(note: note)),
     );
-    // Navigator.push(
-    //   context,
-    //   MaterialPageRoute(
-    //     builder: (context) => EditNoteScreen(note: note),
-    //   ),
-    // );
+  }
+
+  Widget _buildSectionHeader(String title, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      margin: const EdgeInsets.only(bottom: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border(left: BorderSide(color: color, width: 4)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 28),
+          const SizedBox(width: 12),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: color,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildNoteCard(NoteModel note) {
@@ -107,73 +155,178 @@ class _HomeScreenState extends State<HomeScreen> {
     final imagePath = categoryImages[note.categoryImageIndex % 4];
 
     return Card(
-      elevation: 2,
+      elevation: note.isDone ? 1 : 4,
+      shadowColor: note.isDone ? Colors.grey[300] : Colors.black26,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: note.isDone ? Colors.grey[300]! : Colors.transparent,
+          width: 1,
+        ),
+      ),
       margin: const EdgeInsets.only(bottom: 12),
-      child: ListTile(
-        contentPadding: const EdgeInsets.all(12),
-        leading: Container(
-          width: 50,
-          height: 50,
+      child: InkWell(
+        onTap: () => _navigateToEditNote(note),
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(8),
-            color: Colors.grey[200],
+            borderRadius: BorderRadius.circular(12),
+            gradient:
+                note.isDone
+                    ? null
+                    : LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Colors.white,
+                        Theme.of(
+                          context,
+                        ).colorScheme.primary.withValues(alpha: 0.02),
+                      ],
+                    ),
+            color: note.isDone ? Colors.grey[50] : null,
           ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: Image.asset(
-              imagePath,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) {
-                return Icon(Icons.image, color: Colors.grey[400]);
-              },
-            ),
-          ),
-        ),
-        title: Row(
-          children: [
-            Expanded(
-              child: Text(
-                note.title,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Category image
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    color: note.isDone ? Colors.grey[200] : Colors.white,
+                    border: Border.all(
+                      color:
+                          note.isDone
+                              ? Colors.grey[300]!
+                              : Theme.of(
+                                context,
+                              ).colorScheme.primary.withValues(alpha: 0.3),
+                      width: 2,
+                    ),
+                    boxShadow:
+                        note.isDone
+                            ? null
+                            : [
+                              BoxShadow(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.primary.withValues(alpha: 0.1),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: Opacity(
+                      opacity: note.isDone ? 0.4 : 1.0,
+                      child: Image.asset(
+                        imagePath,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Icon(
+                            Icons.image,
+                            color: Colors.grey[400],
+                            size: 30,
+                          );
+                        },
+                      ),
+                    ),
+                  ),
                 ),
-              ),
+                const SizedBox(width: 16),
+
+                // Note content
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              note.title,
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                                color:
+                                    note.isDone
+                                        ? Colors.grey[600]
+                                        : Colors.black87,
+                                decoration:
+                                    note.isDone
+                                        ? TextDecoration.lineThrough
+                                        : null,
+                                decorationColor: Colors.grey[500],
+                                decorationThickness: 2,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline, size: 22),
+                            color: Colors.red[400],
+                            onPressed: () => _deleteNote(note.id),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            tooltip: 'Delete note',
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        note.description,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color:
+                              note.isDone ? Colors.grey[500] : Colors.grey[700],
+                          height: 1.4,
+                          decoration:
+                              note.isDone ? TextDecoration.lineThrough : null,
+                          decorationColor: Colors.grey[400],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.access_time,
+                            size: 14,
+                            color: Colors.grey[500],
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            note.timestamp,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[500],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Checkbox
+                Checkbox(
+                  value: note.isDone,
+                  onChanged: (value) {
+                    _toggleNoteStatus(note.id, note.isDone);
+                  },
+                  activeColor: Colors.green[600],
+                ),
+              ],
             ),
-            IconButton(
-              icon: const Icon(Icons.delete, size: 20),
-              color: Colors.red[400],
-              onPressed: () => _deleteNote(note.id),
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-            ),
-          ],
+          ),
         ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 4),
-            Text(
-              note.description,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              note.timestamp,
-              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-            ),
-          ],
-        ),
-        trailing: Checkbox(
-          value: note.isDone,
-          onChanged: (value) {
-            _toggleNoteStatus(note.id, note.isDone);
-          },
-        ),
-        onTap: () {
-          _navigateToEditNote(note);
-        },
       ),
     );
   }
@@ -252,19 +405,17 @@ class _HomeScreenState extends State<HomeScreen> {
         padding: const EdgeInsets.all(16.0),
         children: [
           // Not Done Section
-          const Text(
+          _buildSectionHeader(
             'Not Done',
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            Icons.radio_button_unchecked,
+            Theme.of(context).colorScheme.primary,
           ),
           const SizedBox(height: 16),
           _buildNotesStream(userId, false, 'No active notes yet'),
           const SizedBox(height: 32),
 
           // Done Section
-          const Text(
-            'Done',
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          ),
+          _buildSectionHeader('Done', Icons.check_circle, Colors.green[600]!),
           const SizedBox(height: 16),
           _buildNotesStream(userId, true, 'No completed notes yet'),
         ],
@@ -277,11 +428,10 @@ class _HomeScreenState extends State<HomeScreen> {
           opacity: _isFabVisible ? 1.0 : 0.0,
           child: FloatingActionButton(
             onPressed: () {
-              // Navigate to AddNoteScreen
-              // Navigator.push(
-              //   context,
-              //   MaterialPageRoute(builder: (context) => const AddNoteScreen()),
-              // );
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const AddNoteScreen()),
+              );
             },
             child: const Icon(Icons.add),
           ),

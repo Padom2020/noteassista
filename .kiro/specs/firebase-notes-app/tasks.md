@@ -134,59 +134,88 @@
     - Display error messages if creation fails
     - _Requirements: 4.1, 4.2, 4.3, 4.5, 4.6_
 
-- [-] 7. Implement EditNoteScreen
+- [x] 7. Implement EditNoteScreen
 
 
 
 
-  - [ ] 7.1 Create EditNoteScreen form
+
+
+
+
+  - [x] 7.1 Create EditNoteScreen form
+
+
     - Build form pre-populated with existing note data
     - Display title, description, and selected category from passed note
     - Reuse category selection grid from AddNoteScreen
     - _Requirements: 7.1_
   
-  - [ ] 7.2 Implement note update logic
+  - [x] 7.2 Implement note update logic
+
     - Implement _updateNote() method that generates new timestamp and calls FirestoreService.updateNote()
     - Preserve note ID and isDone status during update
     - Navigate back to HomeScreen on successful update
     - Display error messages if update fails
     - _Requirements: 7.2, 7.3, 7.4, 7.5_
 
-- [ ] 8. Implement UI styling and theming
-  - [ ] 8.1 Create consistent color scheme
+- [x] 8. Implement UI styling and theming
+
+
+
+
+
+
+  - [x] 8.1 Create consistent color scheme
+
     - Define primary colors in theme
     - Apply consistent styling to buttons, cards, and form fields
     - Implement focus state colors for input fields
     - Style category image selection borders
     - _Requirements: 9.3, 9.4, 9.5_
   
-  - [ ] 8.2 Style note cards and sections
+
+
+  - [x] 8.2 Style note cards and sections
     - Create card design with elevation for notes
     - Style section headers for "Not Done" and "Done"
     - Implement visual distinction between completed and active notes
     - Add category image display in note cards
     - _Requirements: 5.1, 5.3_
 
-- [ ] 9. Add error handling and loading states
-  - [ ] 9.1 Implement authentication error handling
+- [x] 9. Add error handling and loading states
+
+
+
+
+
+  - [x] 9.1 Implement authentication error handling
+
     - Add try-catch blocks in login and signup methods
     - Map Firebase auth error codes to user-friendly messages
     - Display errors using SnackBar or form field errors
     - _Requirements: 1.3, 2.3_
   
-  - [ ] 9.2 Implement Firestore error handling
+  - [x] 9.2 Implement Firestore error handling
+
+
     - Add try-catch blocks around all Firestore operations
     - Display user-friendly error messages for common Firestore exceptions
     - Handle network errors gracefully
     - _Requirements: 4.1, 5.2, 6.1, 7.2, 8.1_
   
-  - [ ] 9.3 Add loading indicators
+
+
+  - [x] 9.3 Add loading indicators
+
     - Show CircularProgressIndicator during async operations
     - Disable submit buttons during processing
     - Display loading state in StreamBuilders
     - _Requirements: 2.1, 2.2, 4.1, 5.2, 7.2, 8.1_
 
-- [ ] 10. Configure Firestore security rules
+- [x] 10. Configure Firestore security rules
+
+
   - Write security rules to restrict access to user's own data
   - Ensure users can only read/write their own user document and notes subcollection
   - Require authentication for all operations
