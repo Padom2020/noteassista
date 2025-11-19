@@ -62,14 +62,19 @@ class NoteModel {
 }
 ```
 
-## Firebase Setup Required
+## Advantages of Local Storage
 
-Make sure Firebase Storage is enabled in your Firebase Console:
-1. Go to Firebase Console
-2. Select your project
-3. Navigate to Storage
-4. Click "Get Started"
-5. Set up security rules (default rules are fine for testing)
+✅ **No Firebase upgrade needed** - Works with free Firebase plan
+✅ **Faster loading** - Images load instantly from device
+✅ **Offline support** - Images available without internet
+✅ **No bandwidth costs** - No data transfer charges
+✅ **Privacy** - Images stay on user's device
+
+## Limitations
+
+⚠️ **Device-specific** - Images don't sync across devices
+⚠️ **Storage space** - Uses device storage (automatically managed by OS)
+⚠️ **Backup** - Images not backed up to cloud (user must backup device)
 
 ## Next Steps
 
