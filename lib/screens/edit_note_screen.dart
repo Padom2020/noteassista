@@ -131,21 +131,22 @@ class _EditNoteScreenState extends State<EditNoteScreen> {
 
   Widget _buildCategoryGrid() {
     final categoryImages = [
-      'assets/images/category_1.png',
-      'assets/images/category_2.png',
-      'assets/images/category_3.png',
-      'assets/images/category_4.png',
+      'assets/images/0.png',
+      'assets/images/1.png',
+      'assets/images/2.png',
+      'assets/images/3.png',
+      'assets/images/4.png',
     ];
 
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 4,
+        crossAxisCount: 5,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
       ),
-      itemCount: 4,
+      itemCount: 5,
       itemBuilder: (context, index) {
         final isSelected = _selectedCategoryIndex == index;
 

@@ -177,6 +177,10 @@ class NoteModel {
   final String timestamp;
   final int categoryImageIndex;
   final bool isDone;
+  final bool isPinned;
+  final List<String> tags;
+  final DateTime createdAt;
+  final DateTime updatedAt;
   
   NoteModel({
     required this.id,
@@ -185,6 +189,10 @@ class NoteModel {
     required this.timestamp,
     required this.categoryImageIndex,
     required this.isDone,
+    this.isPinned = false,
+    this.tags = const [],
+    required this.createdAt,
+    required this.updatedAt,
   });
   
   Map<String, dynamic> toMap() {
@@ -194,6 +202,10 @@ class NoteModel {
       'timestamp': timestamp,
       'categoryImageIndex': categoryImageIndex,
       'isDone': isDone,
+      'isPinned': isPinned,
+      'tags': tags,
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
     };
   }
   
@@ -206,6 +218,14 @@ class NoteModel {
       timestamp: data['timestamp'] ?? '',
       categoryImageIndex: data['categoryImageIndex'] ?? 0,
       isDone: data['isDone'] ?? false,
+      isPinned: data['isPinned'] ?? false,
+      tags: List<String>.from(data['tags'] ?? []),
+      createdAt: data['createdAt'] != null 
+          ? DateTime.parse(data['createdAt']) 
+          : DateTime.now(),
+      updatedAt: data['updatedAt'] != null 
+          ? DateTime.parse(data['updatedAt']) 
+          : DateTime.now(),
     );
   }
 }

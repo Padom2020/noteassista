@@ -144,11 +144,34 @@ class _SignupScreenState extends State<SignupScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const SizedBox(height: 40),
-                const Text(
-                  'Create Account',
-                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-                  textAlign: TextAlign.center,
+                const SizedBox(height: 20),
+                // Logo
+                Center(
+                  child: Column(
+                    children: [
+                      Image.asset(
+                        'assets/images/noteassista-logo-transparent.png',
+                        height: 100,
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) {
+                          return const Icon(
+                            Icons.note_alt,
+                            size: 70,
+                            color: Colors.black,
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Create Account',
+                        style: TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 32),
                 TextFormField(

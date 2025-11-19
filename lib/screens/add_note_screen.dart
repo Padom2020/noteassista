@@ -1,6 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
+import '../services/image_upload_service.dart';
 import '../models/note_model.dart';
 import '../utils/timestamp_utils.dart';
 
@@ -17,9 +20,11 @@ class _AddNoteScreenState extends State<AddNoteScreen> {
   final _descriptionController = TextEditingController();
   final AuthService _authService = AuthService();
   final FirestoreService _firestoreService = FirestoreService();
+  final ImageUploadService _imageUploadService = ImageUploadService();
 
   int _selectedCategoryIndex = 0;
   bool _isLoading = false;
+  File? _selectedImage;
 
   final FocusNode _titleFocusNode = FocusNode();
   final FocusNode _descriptionFocusNode = FocusNode();
@@ -36,7 +41,63 @@ class _AddNoteScreenState extends State<AddNoteScreen> {
   void _selectCategory(int index) {
     setState(() {
       _selectedCategoryIndex = index;
+      _selectedImage = null; // Clear custom image when selecting preset
     });
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      File? image;
+      if (source == ImageSource.gallery) {
+        image = await _imageUploadService.pickImageFromGallery();
+      } else {
+        image = await _imageUploadService.pickImageFromCamera();
+      }
+
+      if (image != null) {
+        setState(() {
+          _selectedImage = image;
+          _selectedCategoryIndex = -1; // Indicate custom image selected
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  void _showImageSourceDialog() {
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Choose Image Source'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.photo_library),
+                  title: const Text('Gallery'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _pickImage(ImageSource.gallery);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.camera_alt),
+                  title: const Text('Camera'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _pickImage(ImageSource.camera);
+                  },
+                ),
+              ],
+            ),
+          ),
+    );
   }
 
   Future<void> _createNote() async {
@@ -61,6 +122,15 @@ class _AddNoteScreenState extends State<AddNoteScreen> {
     });
 
     try {
+      // Save custom image locally if selected
+      String? imagePath;
+      if (_selectedImage != null) {
+        imagePath = await _imageUploadService.saveImageLocally(
+          _selectedImage!,
+          userId,
+        );
+      }
+
       // Generate timestamp
       final timestamp = generateTimestamp();
 
@@ -70,8 +140,10 @@ class _AddNoteScreenState extends State<AddNoteScreen> {
         title: _titleController.text.trim(),
         description: _descriptionController.text.trim(),
         timestamp: timestamp,
-        categoryImageIndex: _selectedCategoryIndex,
+        categoryImageIndex:
+            _selectedCategoryIndex >= 0 ? _selectedCategoryIndex : 0,
         isDone: false,
+        customImageUrl: imagePath,
       );
 
       // Save to Firestore
@@ -118,53 +190,112 @@ class _AddNoteScreenState extends State<AddNoteScreen> {
 
   Widget _buildCategoryGrid() {
     final categoryImages = [
-      'assets/images/category_1.png',
-      'assets/images/category_2.png',
-      'assets/images/category_3.png',
-      'assets/images/category_4.png',
+      'assets/images/0.png',
+      'assets/images/1.png',
+      'assets/images/2.png',
+      'assets/images/3.png',
+      'assets/images/4.png',
     ];
 
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 4,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-      ),
-      itemCount: 4,
-      itemBuilder: (context, index) {
-        final isSelected = _selectedCategoryIndex == index;
+    return Column(
+      children: [
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 5,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+          ),
+          itemCount: 5,
+          itemBuilder: (context, index) {
+            final isSelected = _selectedCategoryIndex == index;
 
-        return GestureDetector(
-          onTap: () => _selectCategory(index),
-          child: Container(
+            return GestureDetector(
+              onTap: () => _selectCategory(index),
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color:
+                        isSelected
+                            ? Theme.of(context).colorScheme.primary
+                            : Colors.grey[300]!,
+                    width: isSelected ? 3 : 1,
+                  ),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: Image.asset(
+                    categoryImages[index],
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        color: Colors.grey[200],
+                        child: Icon(Icons.image, color: Colors.grey[400]),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 16),
+        // Upload custom image button
+        OutlinedButton.icon(
+          onPressed: _showImageSourceDialog,
+          icon: const Icon(Icons.add_photo_alternate),
+          label: const Text('Upload Custom Image'),
+          style: OutlinedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+          ),
+        ),
+        // Show selected custom image preview
+        if (_selectedImage != null) ...[
+          const SizedBox(height: 12),
+          Container(
+            height: 100,
+            width: double.infinity,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
-                color:
-                    isSelected
-                        ? Theme.of(context).colorScheme.primary
-                        : Colors.grey[300]!,
-                width: isSelected ? 3 : 1,
+                color: Theme.of(context).colorScheme.primary,
+                width: 3,
               ),
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(6),
-              child: Image.asset(
-                categoryImages[index],
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    color: Colors.grey[200],
-                    child: Icon(Icons.image, color: Colors.grey[400]),
-                  );
-                },
+              child: Stack(
+                children: [
+                  Image.file(
+                    _selectedImage!,
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                  ),
+                  Positioned(
+                    top: 4,
+                    right: 4,
+                    child: IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white),
+                      onPressed: () {
+                        setState(() {
+                          _selectedImage = null;
+                          _selectedCategoryIndex = 0;
+                        });
+                      },
+                      style: IconButton.styleFrom(
+                        backgroundColor: Colors.black54,
+                        padding: const EdgeInsets.all(4),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
-        );
-      },
+        ],
+      ],
     );
   }
 

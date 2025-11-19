@@ -222,21 +222,23 @@
   - Deploy rules to Firebase console
   - _Requirements: 10.3, 10.4_
 
-- [ ]* 11. Write integration tests for critical flows
-  - [ ]* 11.1 Test authentication flow
+- [x] 11. Write integration tests for critical flows
+
+
+  - [x] 11.1 Test authentication flow
     - Write test for signup → auto-login → HomeScreen navigation
     - Write test for login with valid credentials
     - Write test for login with invalid credentials shows error
     - _Requirements: 1.1, 1.4, 2.1, 2.2, 2.3_
   
-  - [ ]* 11.2 Test note CRUD operations
+  - [x] 11.2 Test note CRUD operations
     - Write test for create note → verify appears in list
     - Write test for edit note → verify changes persist
     - Write test for delete note → verify removal from list
     - Write test for toggle completion → verify section change
     - _Requirements: 4.1, 5.2, 6.1, 7.2, 8.1_
   
-  - [ ]* 11.3 Test real-time synchronization
+  - [x] 11.3 Test real-time synchronization
     - Write test to verify StreamBuilder updates on Firestore changes
     - Write test for auth state changes triggering navigation
     - _Requirements: 3.4, 5.4, 5.5_

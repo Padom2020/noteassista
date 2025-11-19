@@ -137,3 +137,123 @@ This document specifies the requirements for NoteAssista, a Flutter-based note-t
 3. THE NoteAssista SHALL use Firebase Authentication to manage user sessions and access control
 4. THE NoteAssista SHALL ensure that users can only access their own notes through Firestore security rules
 5. THE NoteAssista SHALL handle Firebase initialization before rendering any user interface components
+
+### Requirement 11: Search and Filter Notes
+
+**User Story:** As a user, I want to search through my notes by title or description, so that I can quickly find specific information.
+
+#### Acceptance Criteria
+
+1. THE NoteAssista SHALL provide a search bar on the home screen
+2. WHEN a user enters search text, THE NoteAssista SHALL filter displayed notes to show only those with matching title or description
+3. THE NoteAssista SHALL perform case-insensitive search matching
+4. WHEN the search field is cleared, THE NoteAssista SHALL display all notes again
+5. THE NoteAssista SHALL search across both done and not done notes simultaneously
+
+### Requirement 12: Tag-Based Organization
+
+**User Story:** As a user, I want to add tags to my notes, so that I can categorize and filter them flexibly.
+
+#### Acceptance Criteria
+
+1. WHEN creating or editing a note, THE NoteAssista SHALL allow users to add multiple tags
+2. THE NoteAssista SHALL store tags as an array field in the note document
+3. THE NoteAssista SHALL display tags visually on each note card
+4. THE NoteAssista SHALL provide a tag filter interface showing all available tags
+5. WHEN a user selects a tag filter, THE NoteAssista SHALL display only notes containing that tag
+
+### Requirement 13: Pin Important Notes
+
+**User Story:** As a user, I want to pin important notes to the top of my list, so that I can access them quickly.
+
+#### Acceptance Criteria
+
+1. THE NoteAssista SHALL provide a pin/unpin action for each note
+2. WHEN a note is pinned, THE NoteAssista SHALL update the isPinned field in Firestore
+3. THE NoteAssista SHALL display pinned notes at the top of their respective sections (done/not done)
+4. THE NoteAssista SHALL provide a visual indicator (pin icon) for pinned notes
+5. THE NoteAssista SHALL maintain pin status when notes are marked as complete or incomplete
+
+### Requirement 14: Markdown Support
+
+**User Story:** As a user, I want to format my notes using markdown syntax, so that I can create structured and readable content.
+
+#### Acceptance Criteria
+
+1. THE NoteAssista SHALL render markdown syntax in note descriptions (bold, italic, lists, headers)
+2. WHEN editing a note, THE NoteAssista SHALL display raw markdown text
+3. WHEN viewing a note, THE NoteAssista SHALL display formatted markdown content
+4. THE NoteAssista SHALL support basic markdown: **bold**, *italic*, # headers, - lists, and links
+5. THE NoteAssista SHALL provide a markdown preview toggle in the edit screen
+
+### Requirement 15: Offline Mode
+
+**User Story:** As a user, I want to create and edit notes without an internet connection, so that I can work anywhere.
+
+#### Acceptance Criteria
+
+1. THE NoteAssista SHALL enable Firestore offline persistence
+2. WHEN offline, THE NoteAssista SHALL allow users to create, edit, and delete notes
+3. WHEN the device reconnects, THE NoteAssista SHALL automatically sync all offline changes to Firestore
+4. THE NoteAssista SHALL display an offline indicator when no network connection is available
+5. THE NoteAssista SHALL cache previously loaded notes for offline viewing
+
+### Requirement 16: Dark Mode
+
+**User Story:** As a user, I want to switch between light and dark themes, so that I can use the app comfortably in different lighting conditions.
+
+#### Acceptance Criteria
+
+1. THE NoteAssista SHALL provide a theme toggle in the app settings or home screen
+2. WHEN dark mode is enabled, THE NoteAssista SHALL apply a dark color scheme to all screens
+3. THE NoteAssista SHALL persist the user's theme preference locally
+4. THE NoteAssista SHALL apply the saved theme preference on app launch
+5. THE NoteAssista SHALL ensure text remains readable with sufficient contrast in both themes
+
+### Requirement 17: Quick Capture Widget
+
+**User Story:** As a user, I want to quickly add a note without opening the full app, so that I can capture thoughts instantly.
+
+#### Acceptance Criteria
+
+1. THE NoteAssista SHALL provide a quick capture text field accessible from the home screen
+2. WHEN a user enters text in the quick capture field, THE NoteAssista SHALL create a note with that text as the title
+3. THE NoteAssista SHALL set a default category and empty description for quick-captured notes
+4. THE NoteAssista SHALL allow users to expand quick-captured notes to add more details
+5. THE NoteAssista SHALL display quick-captured notes in the not done section
+
+### Requirement 18: Sort Options
+
+**User Story:** As a user, I want to sort my notes by different criteria, so that I can organize them according to my needs.
+
+#### Acceptance Criteria
+
+1. THE NoteAssista SHALL provide sort options: newest first, oldest first, alphabetical by title
+2. WHEN a user selects a sort option, THE NoteAssista SHALL reorder the displayed notes accordingly
+3. THE NoteAssista SHALL persist the user's sort preference locally
+4. THE NoteAssista SHALL apply sorting within each section (done/not done) independently
+5. THE NoteAssista SHALL apply the saved sort preference on app launch
+
+### Requirement 19: Note Templates
+
+**User Story:** As a user, I want to create notes from templates, so that I can quickly start common note types.
+
+#### Acceptance Criteria
+
+1. THE NoteAssista SHALL provide predefined templates (meeting notes, todo list, daily journal)
+2. WHEN creating a note, THE NoteAssista SHALL offer a template selection option
+3. WHEN a template is selected, THE NoteAssista SHALL pre-populate the note with template content
+4. THE NoteAssista SHALL allow users to modify template content before saving
+5. THE NoteAssista SHALL store templates as a separate collection in Firestore for future customization
+
+### Requirement 20: Export Notes
+
+**User Story:** As a user, I want to export my notes to external formats, so that I can back them up or share them outside the app.
+
+#### Acceptance Criteria
+
+1. THE NoteAssista SHALL provide an export option in the app menu
+2. WHEN exporting, THE NoteAssista SHALL support plain text and markdown formats
+3. THE NoteAssista SHALL allow users to export all notes or selected notes
+4. THE NoteAssista SHALL save exported files to the device's downloads folder
+5. THE NoteAssista SHALL include note metadata (title, timestamp, tags) in the export

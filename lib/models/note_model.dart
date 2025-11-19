@@ -7,6 +7,7 @@ class NoteModel {
   final String timestamp;
   final int categoryImageIndex;
   final bool isDone;
+  final String? customImageUrl; // URL for user-uploaded image
 
   NoteModel({
     required this.id,
@@ -15,6 +16,7 @@ class NoteModel {
     required this.timestamp,
     required this.categoryImageIndex,
     required this.isDone,
+    this.customImageUrl,
   });
 
   Map<String, dynamic> toMap() {
@@ -24,6 +26,7 @@ class NoteModel {
       'timestamp': timestamp,
       'categoryImageIndex': categoryImageIndex,
       'isDone': isDone,
+      'customImageUrl': customImageUrl,
     };
   }
 
@@ -36,6 +39,7 @@ class NoteModel {
       timestamp: data['timestamp'] ?? '',
       categoryImageIndex: data['categoryImageIndex'] ?? 0,
       isDone: data['isDone'] ?? false,
+      customImageUrl: data['customImageUrl'],
     );
   }
 }

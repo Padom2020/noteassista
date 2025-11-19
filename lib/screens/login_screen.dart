@@ -107,11 +107,34 @@ class _LoginScreenState extends State<LoginScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const SizedBox(height: 60),
-                const Text(
-                  'Welcome Back',
-                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-                  textAlign: TextAlign.center,
+                const SizedBox(height: 40),
+                // Logo
+                Center(
+                  child: Column(
+                    children: [
+                      Image.asset(
+                        'assets/images/noteassista-logo-transparent.png',
+                        height: 120,
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) {
+                          return const Icon(
+                            Icons.note_alt,
+                            size: 80,
+                            color: Colors.black,
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Welcome Back',
+                        style: TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 32),
                 TextFormField(

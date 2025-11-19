@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
@@ -146,13 +147,14 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildNoteCard(NoteModel note) {
     // Get category image asset path
     final categoryImages = [
-      'assets/images/category_1.png',
-      'assets/images/category_2.png',
-      'assets/images/category_3.png',
-      'assets/images/category_4.png',
+      'assets/images/0.png',
+      'assets/images/1.png',
+      'assets/images/2.png',
+      'assets/images/3.png',
+      'assets/images/4.png',
     ];
 
-    final imagePath = categoryImages[note.categoryImageIndex % 4];
+    final imagePath = categoryImages[note.categoryImageIndex % 5];
 
     return Card(
       elevation: note.isDone ? 1 : 4,
@@ -224,17 +226,31 @@ class _HomeScreenState extends State<HomeScreen> {
                     borderRadius: BorderRadius.circular(10),
                     child: Opacity(
                       opacity: note.isDone ? 0.4 : 1.0,
-                      child: Image.asset(
-                        imagePath,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Icon(
-                            Icons.image,
-                            color: Colors.grey[400],
-                            size: 30,
-                          );
-                        },
-                      ),
+                      child:
+                          note.customImageUrl != null &&
+                                  File(note.customImageUrl!).existsSync()
+                              ? Image.file(
+                                File(note.customImageUrl!),
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Icon(
+                                    Icons.image,
+                                    color: Colors.grey[400],
+                                    size: 30,
+                                  );
+                                },
+                              )
+                              : Image.asset(
+                                imagePath,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Icon(
+                                    Icons.image,
+                                    color: Colors.grey[400],
+                                    size: 30,
+                                  );
+                                },
+                              ),
                     ),
                   ),
                 ),
@@ -390,7 +406,19 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('NoteAssista'),
+        title: Row(
+          children: [
+            Image.asset(
+              'assets/images/noteassista-logo-transparent.png',
+              height: 32,
+              errorBuilder: (context, error, stackTrace) {
+                return const Icon(Icons.note_alt, size: 28);
+              },
+            ),
+            const SizedBox(width: 12),
+            const Text('NoteAssista'),
+          ],
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
