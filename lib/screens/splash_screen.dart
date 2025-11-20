@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'auth_wrapper.dart';
+import '../widgets/app_logo.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -73,38 +74,28 @@ class _SplashScreenState extends State<SplashScreen>
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Logo
+                    // Logo - Try asset first, fallback to custom painted logo
                     Image.asset(
                       'assets/images/noteassista-logo-transparent.png',
-                      width: 200,
-                      height: 200,
+                      width: 140,
+                      height: 140,
                       errorBuilder: (context, error, stackTrace) {
-                        return const Icon(
-                          Icons.note_alt,
-                          size: 100,
-                          color: Colors.black,
+                        return const AppLogo(
+                          size: 120,
+                          primaryColor: Colors.black,
+                          accentColor: Color(0xFF4CAF50),
                         );
                       },
                     ),
-                    const SizedBox(height: 24),
-                    // App name
-                    const Text(
-                      'NoteAssista',
-                      style: TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
-                        letterSpacing: 1.2,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 32),
                     // Tagline
                     Text(
                       'Your Smart Note Companion',
                       style: TextStyle(
-                        fontSize: 16,
+                        fontSize: 18,
                         color: Colors.grey[600],
                         letterSpacing: 0.5,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
                     const SizedBox(height: 40),
