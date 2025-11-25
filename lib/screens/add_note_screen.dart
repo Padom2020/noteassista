@@ -4,8 +4,13 @@ import 'package:image_picker/image_picker.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
 import '../services/image_upload_service.dart';
+import '../services/ai_tagging_service.dart';
+import '../services/voice_service.dart';
+import '../services/link_management_service.dart';
 import '../models/note_model.dart';
 import '../utils/timestamp_utils.dart';
+import '../widgets/tag_suggestion_chip.dart';
+import '../widgets/voice_capture_button.dart';
 
 class AddNoteScreen extends StatefulWidget {
   const AddNoteScreen({super.key});
@@ -18,24 +23,135 @@ class _AddNoteScreenState extends State<AddNoteScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
+  final _tagsController = TextEditingController();
   final AuthService _authService = AuthService();
   final FirestoreService _firestoreService = FirestoreService();
   final ImageUploadService _imageUploadService = ImageUploadService();
+  final AITaggingService _aiTaggingService = AITaggingService();
+  final VoiceService _voiceService = VoiceService();
+  final LinkManagementService _linkService = LinkManagementService();
 
   int _selectedCategoryIndex = 0;
   bool _isLoading = false;
+  bool _isLoadingSuggestions = false;
+  bool _isRecordingAudio = false;
   File? _selectedImage;
+  final List<String> _tags = [];
+  List<TagSuggestion> _tagSuggestions = [];
+  final List<String> _audioUrls = [];
+  String? _currentRecordingPath;
 
   final FocusNode _titleFocusNode = FocusNode();
   final FocusNode _descriptionFocusNode = FocusNode();
+  final FocusNode _tagsFocusNode = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    // Listen to text changes to generate tag suggestions
+    _titleController.addListener(_onContentChanged);
+    _descriptionController.addListener(_onContentChanged);
+  }
 
   @override
   void dispose() {
+    _titleController.removeListener(_onContentChanged);
+    _descriptionController.removeListener(_onContentChanged);
     _titleController.dispose();
     _descriptionController.dispose();
+    _tagsController.dispose();
     _titleFocusNode.dispose();
     _descriptionFocusNode.dispose();
+    _tagsFocusNode.dispose();
+    _voiceService.dispose();
     super.dispose();
+  }
+
+  void _onContentChanged() {
+    // Debounce: wait 2 seconds after last keystroke before generating suggestions
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted) {
+        _generateTagSuggestions();
+      }
+    });
+  }
+
+  Future<void> _generateTagSuggestions() async {
+    final title = _titleController.text.trim();
+    final description = _descriptionController.text.trim();
+
+    // Only generate suggestions if there's content
+    if (title.isEmpty && description.isEmpty) {
+      setState(() {
+        _tagSuggestions = [];
+      });
+      return;
+    }
+
+    final userId = _authService.currentUser?.uid;
+    if (userId == null) return;
+
+    setState(() {
+      _isLoadingSuggestions = true;
+    });
+
+    try {
+      final suggestions = await _aiTaggingService.generateTagSuggestions(
+        userId,
+        title,
+        description,
+      );
+
+      // Filter out tags that are already added
+      final filteredSuggestions =
+          suggestions
+              .where((s) => !_tags.contains(s.tag.toLowerCase()))
+              .toList();
+
+      if (mounted) {
+        setState(() {
+          _tagSuggestions = filteredSuggestions;
+          _isLoadingSuggestions = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingSuggestions = false;
+        });
+      }
+    }
+  }
+
+  void _addTag(String tag) {
+    final normalizedTag = tag.trim().toLowerCase();
+    if (normalizedTag.isEmpty || _tags.contains(normalizedTag)) {
+      return;
+    }
+
+    setState(() {
+      _tags.add(normalizedTag);
+      // Remove accepted tag from suggestions
+      _tagSuggestions.removeWhere((s) => s.tag == normalizedTag);
+    });
+
+    // Record tag acceptance for learning
+    final userId = _authService.currentUser?.uid;
+    if (userId != null) {
+      _aiTaggingService.recordTagAcceptance(
+        userId,
+        normalizedTag,
+        '${_titleController.text} ${_descriptionController.text}',
+      );
+    }
+
+    _tagsController.clear();
+  }
+
+  void _removeTag(String tag) {
+    setState(() {
+      _tags.remove(tag);
+    });
   }
 
   void _selectCategory(int index) {
@@ -100,6 +216,60 @@ class _AddNoteScreenState extends State<AddNoteScreen> {
     );
   }
 
+  Future<void> _startAudioRecording() async {
+    try {
+      setState(() {
+        _isRecordingAudio = true;
+      });
+
+      _currentRecordingPath = await _voiceService.recordAudio();
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isRecordingAudio = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error starting recording: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _stopAudioRecording() async {
+    try {
+      final recordingPath = await _voiceService.stopRecording();
+
+      if (recordingPath != null && mounted) {
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Audio recorded successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+
+      setState(() {
+        _isRecordingAudio = false;
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isRecordingAudio = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error stopping recording: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _createNote() async {
     // Validate form
     if (!_formKey.currentState!.validate()) {
@@ -131,8 +301,29 @@ class _AddNoteScreenState extends State<AddNoteScreen> {
         );
       }
 
+      // Upload audio recording if exists
+      if (_currentRecordingPath != null) {
+        // Create a temporary note ID for storage organization
+        final tempNoteId = DateTime.now().millisecondsSinceEpoch.toString();
+        final audioUrl = await _voiceService.uploadAudio(
+          _currentRecordingPath!,
+          userId,
+          tempNoteId,
+        );
+        _audioUrls.add(audioUrl);
+      }
+
       // Generate timestamp
       final timestamp = generateTimestamp();
+
+      // Calculate word count
+      final wordCount =
+          _descriptionController.text.trim().split(RegExp(r'\s+')).length;
+
+      // Extract outgoing links from description
+      final links = _linkService.parseLinks(_descriptionController.text.trim());
+      final outgoingLinks =
+          links.map((link) => link.targetTitle).toSet().toList();
 
       // Create note model
       final note = NoteModel(
@@ -144,6 +335,10 @@ class _AddNoteScreenState extends State<AddNoteScreen> {
             _selectedCategoryIndex >= 0 ? _selectedCategoryIndex : 0,
         isDone: false,
         customImageUrl: imagePath,
+        tags: _tags,
+        audioUrls: _audioUrls,
+        wordCount: wordCount,
+        outgoingLinks: outgoingLinks,
       );
 
       // Save to Firestore
@@ -299,10 +494,84 @@ class _AddNoteScreenState extends State<AddNoteScreen> {
     );
   }
 
+  void _onVoiceTranscription(String transcription) {
+    // Append transcription to description
+    final currentText = _descriptionController.text;
+    final newText =
+        currentText.isEmpty ? transcription : '$currentText\n\n$transcription';
+    _descriptionController.text = newText;
+
+    // Generate title if empty
+    if (_titleController.text.isEmpty) {
+      String title;
+      final firstSentenceEnd = transcription.indexOf('.');
+      if (firstSentenceEnd != -1 && firstSentenceEnd < 50) {
+        title = transcription.substring(0, firstSentenceEnd).trim();
+      } else {
+        title =
+            transcription.length > 50
+                ? '${transcription.substring(0, 50)}...'
+                : transcription;
+      }
+      _titleController.text = title;
+    }
+
+    // Trigger tag suggestions
+    _generateTagSuggestions();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Add Note')),
+      appBar: AppBar(
+        title: const Text('Add Note'),
+        actions: [
+          // Voice capture button in app bar
+          IconButton(
+            icon: const Icon(Icons.mic),
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder:
+                    (context) => Dialog(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(24.0),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text(
+                              'Voice Input',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                            VoiceCaptureButton(
+                              voiceService: _voiceService,
+                              onTranscriptionComplete: (transcription) {
+                                Navigator.pop(context);
+                                _onVoiceTranscription(transcription);
+                              },
+                            ),
+                            const SizedBox(height: 16),
+                            TextButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: const Text('Cancel'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+              );
+            },
+            tooltip: 'Voice input',
+          ),
+        ],
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Form(
@@ -340,6 +609,54 @@ class _AddNoteScreenState extends State<AddNoteScreen> {
                   return null;
                 },
               ),
+              const SizedBox(height: 16),
+
+              // Tags input field
+              TextFormField(
+                controller: _tagsController,
+                focusNode: _tagsFocusNode,
+                decoration: InputDecoration(
+                  labelText: 'Tags',
+                  hintText: 'Add a tag and press Enter',
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.add),
+                    onPressed: () {
+                      if (_tagsController.text.isNotEmpty) {
+                        _addTag(_tagsController.text);
+                      }
+                    },
+                  ),
+                ),
+                onFieldSubmitted: (value) {
+                  if (value.isNotEmpty) {
+                    _addTag(value);
+                  }
+                },
+              ),
+              const SizedBox(height: 8),
+
+              // Display added tags
+              if (_tags.isNotEmpty)
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children:
+                      _tags.map((tag) {
+                        return Chip(
+                          label: Text(tag),
+                          deleteIcon: const Icon(Icons.close, size: 18),
+                          onDeleted: () => _removeTag(tag),
+                        );
+                      }).toList(),
+                ),
+              if (_tags.isNotEmpty) const SizedBox(height: 8),
+
+              // Tag suggestions
+              TagSuggestionList(
+                suggestions: _tagSuggestions,
+                onTagAccepted: _addTag,
+                isLoading: _isLoadingSuggestions,
+              ),
               const SizedBox(height: 24),
 
               // Category selection label
@@ -351,6 +668,89 @@ class _AddNoteScreenState extends State<AddNoteScreen> {
 
               // Category grid
               _buildCategoryGrid(),
+              const SizedBox(height: 24),
+
+              // Audio recording section
+              const Text(
+                'Audio Attachment',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 12),
+
+              // Audio recording button
+              if (!_isRecordingAudio && _currentRecordingPath == null)
+                OutlinedButton.icon(
+                  onPressed: _startAudioRecording,
+                  icon: const Icon(Icons.mic),
+                  label: const Text('Record Audio'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 12,
+                      horizontal: 16,
+                    ),
+                  ),
+                ),
+
+              // Recording indicator
+              if (_isRecordingAudio)
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.red[50],
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.red[300]!),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.fiber_manual_record, color: Colors.red[700]),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Text(
+                          'Recording audio...',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      ElevatedButton(
+                        onPressed: _stopAudioRecording,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red[700],
+                        ),
+                        child: const Text('Stop'),
+                      ),
+                    ],
+                  ),
+                ),
+
+              // Show recorded audio indicator
+              if (_currentRecordingPath != null && !_isRecordingAudio)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.green[50],
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.green[300]!),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.check_circle, color: Colors.green[700]),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Text(
+                          'Audio recorded (will be uploaded with note)',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () {
+                          setState(() {
+                            _currentRecordingPath = null;
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                ),
               const SizedBox(height: 32),
 
               // Create button

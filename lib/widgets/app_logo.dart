@@ -38,7 +38,7 @@ class LogoPainter extends CustomPainter {
     // Draw circular background
     final bgPaint =
         Paint()
-          ..color = primaryColor.withOpacity(0.1)
+          ..color = primaryColor.withValues(alpha: 0.1)
           ..style = PaintingStyle.fill;
     canvas.drawCircle(center, radius, bgPaint);
 
@@ -70,7 +70,7 @@ class LogoPainter extends CustomPainter {
     // Draw lines on notepad
     final linesPaint =
         Paint()
-          ..color = primaryColor.withOpacity(0.3)
+          ..color = primaryColor.withValues(alpha: 0.3)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2;
 

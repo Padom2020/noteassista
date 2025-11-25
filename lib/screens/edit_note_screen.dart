@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
+import '../services/voice_service.dart';
+import '../services/link_management_service.dart';
 import '../models/note_model.dart';
 import '../utils/timestamp_utils.dart';
+import '../widgets/voice_capture_button.dart';
+import '../widgets/audio_player_widget.dart';
 
 class EditNoteScreen extends StatefulWidget {
   final NoteModel note;
@@ -19,9 +23,14 @@ class _EditNoteScreenState extends State<EditNoteScreen> {
   late TextEditingController _descriptionController;
   final AuthService _authService = AuthService();
   final FirestoreService _firestoreService = FirestoreService();
+  final VoiceService _voiceService = VoiceService();
+  final LinkManagementService _linkService = LinkManagementService();
 
   late int _selectedCategoryIndex;
   bool _isLoading = false;
+  bool _isRecordingAudio = false;
+  late List<String> _audioUrls;
+  String? _currentRecordingPath;
 
   final FocusNode _titleFocusNode = FocusNode();
   final FocusNode _descriptionFocusNode = FocusNode();
@@ -35,6 +44,7 @@ class _EditNoteScreenState extends State<EditNoteScreen> {
       text: widget.note.description,
     );
     _selectedCategoryIndex = widget.note.categoryImageIndex;
+    _audioUrls = List<String>.from(widget.note.audioUrls);
   }
 
   @override
@@ -43,6 +53,7 @@ class _EditNoteScreenState extends State<EditNoteScreen> {
     _descriptionController.dispose();
     _titleFocusNode.dispose();
     _descriptionFocusNode.dispose();
+    _voiceService.dispose();
     super.dispose();
   }
 
@@ -50,6 +61,89 @@ class _EditNoteScreenState extends State<EditNoteScreen> {
     setState(() {
       _selectedCategoryIndex = index;
     });
+  }
+
+  Future<void> _startAudioRecording() async {
+    try {
+      setState(() {
+        _isRecordingAudio = true;
+      });
+
+      _currentRecordingPath = await _voiceService.recordAudio();
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isRecordingAudio = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error starting recording: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _stopAudioRecording() async {
+    try {
+      final recordingPath = await _voiceService.stopRecording();
+
+      if (recordingPath != null && mounted) {
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Audio recorded successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+
+      setState(() {
+        _isRecordingAudio = false;
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isRecordingAudio = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error stopping recording: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _removeAudioUrl(String url) async {
+    try {
+      // Delete from Firebase Storage
+      await _voiceService.deleteAudio(url);
+
+      setState(() {
+        _audioUrls.remove(url);
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Audio deleted successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error deleting audio: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _updateNote() async {
@@ -74,8 +168,27 @@ class _EditNoteScreenState extends State<EditNoteScreen> {
     });
 
     try {
+      // Upload audio recording if exists
+      if (_currentRecordingPath != null) {
+        final audioUrl = await _voiceService.uploadAudio(
+          _currentRecordingPath!,
+          userId,
+          widget.note.id,
+        );
+        _audioUrls.add(audioUrl);
+      }
+
       // Generate new timestamp
       final timestamp = generateTimestamp();
+
+      // Calculate word count
+      final wordCount =
+          _descriptionController.text.trim().split(RegExp(r'\s+')).length;
+
+      // Extract outgoing links from description
+      final links = _linkService.parseLinks(_descriptionController.text.trim());
+      final outgoingLinks =
+          links.map((link) => link.targetTitle).toSet().toList();
 
       // Create updated note model, preserving note ID and isDone status
       final updatedNote = NoteModel(
@@ -85,6 +198,22 @@ class _EditNoteScreenState extends State<EditNoteScreen> {
         timestamp: timestamp,
         categoryImageIndex: _selectedCategoryIndex,
         isDone: widget.note.isDone, // Preserve completion status
+        audioUrls: _audioUrls,
+        wordCount: wordCount,
+        outgoingLinks: outgoingLinks,
+        // Preserve other fields
+        tags: widget.note.tags,
+        isPinned: widget.note.isPinned,
+        customImageUrl: widget.note.customImageUrl,
+        imageUrls: widget.note.imageUrls,
+        drawingUrls: widget.note.drawingUrls,
+        folderId: widget.note.folderId,
+        isShared: widget.note.isShared,
+        collaboratorIds: widget.note.collaboratorIds,
+        sourceUrl: widget.note.sourceUrl,
+        reminder: widget.note.reminder,
+        viewCount: widget.note.viewCount,
+        createdAt: widget.note.createdAt,
       );
 
       // Update in Firestore
@@ -182,10 +311,66 @@ class _EditNoteScreenState extends State<EditNoteScreen> {
     );
   }
 
+  void _onVoiceTranscription(String transcription) {
+    // Append transcription to description
+    final currentText = _descriptionController.text;
+    final newText =
+        currentText.isEmpty ? transcription : '$currentText\n\n$transcription';
+    _descriptionController.text = newText;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Edit Note')),
+      appBar: AppBar(
+        title: const Text('Edit Note'),
+        actions: [
+          // Voice capture button in app bar
+          IconButton(
+            icon: const Icon(Icons.mic),
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder:
+                    (context) => Dialog(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(24.0),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text(
+                              'Voice Input',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                            VoiceCaptureButton(
+                              voiceService: _voiceService,
+                              onTranscriptionComplete: (transcription) {
+                                Navigator.pop(context);
+                                _onVoiceTranscription(transcription);
+                              },
+                            ),
+                            const SizedBox(height: 16),
+                            TextButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: const Text('Cancel'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+              );
+            },
+            tooltip: 'Voice input',
+          ),
+        ],
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Form(
@@ -234,6 +419,101 @@ class _EditNoteScreenState extends State<EditNoteScreen> {
 
               // Category grid
               _buildCategoryGrid(),
+              const SizedBox(height: 24),
+
+              // Audio attachments section
+              const Text(
+                'Audio Attachments',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 12),
+
+              // Display existing audio attachments
+              if (_audioUrls.isNotEmpty)
+                ..._audioUrls.map((url) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: AudioPlayerWidget(
+                      audioUrl: url,
+                      onDelete: () => _removeAudioUrl(url),
+                    ),
+                  );
+                }),
+
+              // Audio recording button
+              if (!_isRecordingAudio && _currentRecordingPath == null)
+                OutlinedButton.icon(
+                  onPressed: _startAudioRecording,
+                  icon: const Icon(Icons.mic),
+                  label: const Text('Record Audio'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 12,
+                      horizontal: 16,
+                    ),
+                  ),
+                ),
+
+              // Recording indicator
+              if (_isRecordingAudio)
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.red[50],
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.red[300]!),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.fiber_manual_record, color: Colors.red[700]),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Text(
+                          'Recording audio...',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      ElevatedButton(
+                        onPressed: _stopAudioRecording,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red[700],
+                        ),
+                        child: const Text('Stop'),
+                      ),
+                    ],
+                  ),
+                ),
+
+              // Show recorded audio indicator
+              if (_currentRecordingPath != null && !_isRecordingAudio)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.green[50],
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.green[300]!),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.check_circle, color: Colors.green[700]),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Text(
+                          'Audio recorded (will be uploaded with note)',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () {
+                          setState(() {
+                            _currentRecordingPath = null;
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                ),
               const SizedBox(height: 32),
 
               // Update button

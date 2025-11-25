@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
 import '../models/note_model.dart';
+import '../widgets/clickable_note_link.dart';
 import 'add_note_screen.dart';
 import 'edit_note_screen.dart';
+import 'voice_capture_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -295,11 +297,11 @@ class _HomeScreenState extends State<HomeScreen> {
                         ],
                       ),
                       const SizedBox(height: 6),
-                      Text(
-                        note.description,
+                      ClickableNoteLink(
+                        content: note.description,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
+                        defaultStyle: TextStyle(
                           fontSize: 14,
                           color:
                               note.isDone ? Colors.grey[500] : Colors.grey[700],
@@ -454,14 +456,38 @@ class _HomeScreenState extends State<HomeScreen> {
         child: AnimatedOpacity(
           duration: const Duration(milliseconds: 300),
           opacity: _isFabVisible ? 1.0 : 0.0,
-          child: FloatingActionButton(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const AddNoteScreen()),
-              );
-            },
-            child: const Icon(Icons.add),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Voice capture FAB
+              FloatingActionButton(
+                heroTag: 'voice_fab',
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const VoiceCaptureScreen(),
+                    ),
+                  );
+                },
+                backgroundColor: Colors.red[400],
+                child: const Icon(Icons.mic),
+              ),
+              const SizedBox(height: 12),
+              // Regular add note FAB
+              FloatingActionButton(
+                heroTag: 'add_fab',
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const AddNoteScreen(),
+                    ),
+                  );
+                },
+                child: const Icon(Icons.add),
+              ),
+            ],
           ),
         ),
       ),

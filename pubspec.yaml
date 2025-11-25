@@ -39,10 +39,45 @@ dependencies:
   firebase_core: ^3.8.1
   firebase_auth: ^5.3.4
   cloud_firestore: ^5.5.2
+  firebase_storage: ^12.3.6
+  firebase_database: ^11.1.7
+  
+  # Speech recognition
+  speech_to_text: ^6.6.0
+  permission_handler: ^11.0.1
+  
+  # Audio recording and playback
+  flutter_sound: ^9.2.13
+  audioplayers: ^5.2.1
+  
+  # OCR and ML
+  google_mlkit_text_recognition: ^0.11.0
+  flutter_image_compress: ^2.1.0
+  
+  # Graph visualization
+  graphview: ^1.2.0
+  
+  # Location and reminders
+  geolocator: ^10.1.0
+  flutter_local_notifications: ^17.0.0
+  
+  # Web scraping
+  http: ^1.1.0
+  html: ^0.15.4
+  
+  # Markdown with links
+  flutter_markdown: ^0.6.18
+  
+  # Text analysis
+  ml_algo: ^16.8.0
+  
+  # Drawing
+  flutter_colorpicker: ^1.0.3
   
   # Image picker and local storage
   image_picker: ^1.0.7
   path_provider: ^2.1.1
+  shared_preferences: ^2.2.2
 
 dev_dependencies:
   flutter_test:
@@ -57,6 +92,7 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
   flutter_launcher_icons: ^0.13.1
+  fake_cloud_firestore: ^3.1.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
