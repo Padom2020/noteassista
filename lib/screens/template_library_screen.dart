@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
 import '../models/template_model.dart';
+import '../widgets/share_template_dialog.dart';
+import '../widgets/import_template_dialog.dart';
 
 class TemplateLibraryScreen extends StatefulWidget {
   const TemplateLibraryScreen({super.key});
@@ -90,6 +92,119 @@ class _TemplateLibraryScreenState extends State<TemplateLibraryScreen> {
     Navigator.pop(context, template);
   }
 
+  void _showShareDialog(TemplateModel template) {
+    showDialog(
+      context: context,
+      builder: (context) => ShareTemplateDialog(template: template),
+    );
+  }
+
+  void _showImportDialog() {
+    showDialog(
+      context: context,
+      builder:
+          (context) => ImportTemplateDialog(onImportSuccess: _loadTemplates),
+    );
+  }
+
+  void _showTemplateOptions(TemplateModel template) {
+    showModalBottomSheet(
+      context: context,
+      builder:
+          (context) => SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.description),
+                  title: const Text('Use Template'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _onTemplateSelected(template);
+                  },
+                ),
+                if (template.isCustom) ...[
+                  ListTile(
+                    leading: const Icon(Icons.share),
+                    title: const Text('Share Template'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _showShareDialog(template);
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.delete),
+                    title: const Text('Delete Template'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _showDeleteConfirmation(template);
+                    },
+                  ),
+                ],
+              ],
+            ),
+          ),
+    );
+  }
+
+  void _showDeleteConfirmation(TemplateModel template) {
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Delete Template'),
+            content: Text(
+              'Are you sure you want to delete "${template.name}"?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  Navigator.pop(context);
+                  await _deleteTemplate(template);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Delete'),
+              ),
+            ],
+          ),
+    );
+  }
+
+  Future<void> _deleteTemplate(TemplateModel template) async {
+    final userId = _authService.currentUser?.uid;
+    if (userId == null) return;
+
+    try {
+      await _firestoreService.deleteTemplate(userId, template.id);
+      await _loadTemplates();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Template deleted successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error deleting template: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   Widget _buildSearchBar() {
     return Container(
       margin: const EdgeInsets.all(16),
@@ -116,6 +231,7 @@ class _TemplateLibraryScreenState extends State<TemplateLibraryScreen> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         onTap: () => _onTemplateSelected(template),
+        onLongPress: () => _showTemplateOptions(template),
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -149,15 +265,28 @@ class _TemplateLibraryScreenState extends State<TemplateLibraryScreen> {
               ),
               const SizedBox(height: 12),
 
-              // Template name
-              Text(
-                template.name,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+              // Template name and options button
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      template.name,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (template.isCustom)
+                    IconButton(
+                      icon: const Icon(Icons.more_vert, size: 18),
+                      onPressed: () => _showTemplateOptions(template),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                ],
               ),
               const SizedBox(height: 4),
 
@@ -274,6 +403,13 @@ class _TemplateLibraryScreenState extends State<TemplateLibraryScreen> {
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.file_download),
+            onPressed: _showImportDialog,
+            tooltip: 'Import Template',
+          ),
+        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
           child: Container(height: 1, color: Colors.grey[300]),

@@ -22,6 +22,8 @@ import '../screens/template_library_screen.dart';
 import '../screens/drawing_screen.dart';
 import '../widgets/save_as_template_dialog.dart';
 import '../widgets/template_variable_input_dialog.dart';
+import '../widgets/reminder_dialog.dart';
+import '../services/reminder_service.dart';
 
 class AddNoteScreen extends StatefulWidget {
   const AddNoteScreen({super.key});
@@ -42,6 +44,7 @@ class _AddNoteScreenState extends State<AddNoteScreen> {
   final VoiceService _voiceService = VoiceService();
   final LinkManagementService _linkService = LinkManagementService();
   final OCRService _ocrService = OCRService();
+  final ReminderService _reminderService = ReminderService();
 
   int _selectedCategoryIndex = 0;
   bool _isLoading = false;
@@ -58,6 +61,9 @@ class _AddNoteScreenState extends State<AddNoteScreen> {
   // Folder selection
   String? _selectedFolderId;
   List<FolderModel> _folders = [];
+
+  // Reminder
+  ReminderModel? _reminder;
 
   final FocusNode _titleFocusNode = FocusNode();
   final FocusNode _descriptionFocusNode = FocusNode();
@@ -392,6 +398,7 @@ class _AddNoteScreenState extends State<AddNoteScreen> {
         wordCount: wordCount,
         outgoingLinks: outgoingLinks,
         folderId: _selectedFolderId, // Set the selected folder
+        reminder: _reminder, // Set the reminder
         ownerId: userId, // Set the owner
       );
 
@@ -902,6 +909,36 @@ class _AddNoteScreenState extends State<AddNoteScreen> {
     });
   }
 
+  void _showReminderDialog() {
+    showDialog(
+      context: context,
+      builder:
+          (context) => ReminderDialog(
+            existingReminder: _reminder,
+            onReminderSet: (reminder) {
+              setState(() {
+                _reminder = reminder;
+              });
+              if (reminder != null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Reminder set successfully'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Reminder removed'),
+                    backgroundColor: Colors.orange,
+                  ),
+                );
+              }
+            },
+          ),
+    );
+  }
+
   void _onDrawingRemoved(int index) {
     setState(() {
       _drawingUrls.removeAt(index);
@@ -939,6 +976,17 @@ class _AddNoteScreenState extends State<AddNoteScreen> {
             icon: const Icon(Icons.brush),
             onPressed: _openDrawingScreen,
             tooltip: 'Create drawing',
+          ),
+          // Reminder button
+          IconButton(
+            icon: Icon(
+              _reminder != null
+                  ? Icons.notifications_active
+                  : Icons.notifications_none,
+              color: _reminder != null ? Colors.orange : null,
+            ),
+            onPressed: _showReminderDialog,
+            tooltip: 'Set reminder',
           ),
           // Voice capture button in app bar
           IconButton(

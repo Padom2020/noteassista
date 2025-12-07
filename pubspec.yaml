@@ -84,6 +84,14 @@ dependencies:
   
   # URL launcher for opening web links
   url_launcher: ^6.2.5
+  
+  # File sharing and picking
+  share_plus: ^7.2.2
+  file_picker: ^6.1.1
+  
+  # Statistics export
+  screenshot: ^2.1.0
+  pdf: ^3.10.7
 
 dev_dependencies:
   flutter_test:

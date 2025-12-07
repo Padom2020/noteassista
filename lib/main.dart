@@ -5,15 +5,27 @@ import 'dart:async';
 import 'firebase_options.dart';
 import 'screens/splash_screen.dart';
 import 'screens/web_clipper_screen.dart';
+import 'screens/edit_note_screen.dart';
+import 'services/reminder_service.dart';
+import 'services/firestore_service.dart';
+import 'services/auth_service.dart';
+import 'models/note_model.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  runApp(const MyApp());
+
+  // Initialize reminder service
+  final reminderService = ReminderService();
+  await reminderService.initialize();
+
+  runApp(MyApp(reminderService: reminderService));
 }
 
 class MyApp extends StatefulWidget {
-  const MyApp({super.key});
+  final ReminderService reminderService;
+
+  const MyApp({super.key, required this.reminderService});
 
   @override
   State<MyApp> createState() => _MyAppState();
@@ -27,6 +39,118 @@ class _MyAppState extends State<MyApp> {
   void initState() {
     super.initState();
     _initSharingIntent();
+    _initNotificationHandling();
+  }
+
+  /// Initialize notification tap handling
+  void _initNotificationHandling() {
+    widget.reminderService.onNotificationTapped = (noteId, action) {
+      _handleNotificationAction(noteId, action);
+    };
+  }
+
+  /// Handle notification actions (tap, snooze, mark done)
+  Future<void> _handleNotificationAction(String noteId, String? action) async {
+    if (action == 'snooze') {
+      // Snooze the reminder for 10 minutes
+      await widget.reminderService.snoozeReminder(noteId, noteId);
+
+      // Show snackbar
+      final context = _navigatorKey.currentContext;
+      if (context != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Reminder snoozed for 10 minutes')),
+        );
+      }
+    } else if (action == 'mark_done') {
+      // Mark the note as done
+      try {
+        final authService = AuthService();
+        final user = authService.currentUser;
+        if (user != null) {
+          final firestoreService = FirestoreService();
+          final note = await firestoreService.getNoteById(user.uid, noteId);
+          if (note != null) {
+            // Create updated note with isDone set to true
+            final updatedNote = NoteModel(
+              id: note.id,
+              title: note.title,
+              description: note.description,
+              timestamp: note.timestamp,
+              categoryImageIndex: note.categoryImageIndex,
+              isDone: true,
+              customImageUrl: note.customImageUrl,
+              isPinned: note.isPinned,
+              tags: note.tags,
+              createdAt: note.createdAt,
+              updatedAt: DateTime.now(),
+              outgoingLinks: note.outgoingLinks,
+              audioUrls: note.audioUrls,
+              imageUrls: note.imageUrls,
+              drawingUrls: note.drawingUrls,
+              folderId: note.folderId,
+              isShared: note.isShared,
+              collaboratorIds: note.collaboratorIds,
+              collaborators: note.collaborators,
+              sourceUrl: note.sourceUrl,
+              reminder: note.reminder,
+              viewCount: note.viewCount,
+              wordCount: note.wordCount,
+              ownerId: note.ownerId,
+            );
+            await firestoreService.updateNote(user.uid, noteId, updatedNote);
+          }
+        }
+
+        // Show snackbar
+        final context = _navigatorKey.currentContext;
+        if (context != null && mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Note marked as done')));
+        }
+      } catch (e) {
+        // Show error snackbar
+        final context = _navigatorKey.currentContext;
+        if (context != null && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error marking note as done: $e')),
+          );
+        }
+      }
+    } else {
+      // Default action: open the note
+      _navigateToNote(noteId);
+    }
+  }
+
+  /// Navigate to the note edit screen
+  void _navigateToNote(String noteId) async {
+    try {
+      final authService = AuthService();
+      final user = authService.currentUser;
+      if (user != null) {
+        final firestoreService = FirestoreService();
+        final note = await firestoreService.getNoteById(user.uid, noteId);
+        if (note != null) {
+          Future.delayed(const Duration(milliseconds: 500), () {
+            _navigatorKey.currentState?.push(
+              MaterialPageRoute(
+                builder: (context) => EditNoteScreen(note: note),
+              ),
+            );
+          });
+        }
+      }
+    } catch (e) {
+      // Show error snackbar
+      final context = _navigatorKey.currentContext;
+      if (context != null && mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error opening note: $e')));
+      }
+    }
   }
 
   @override

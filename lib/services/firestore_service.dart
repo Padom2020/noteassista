@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../models/note_model.dart';
@@ -99,6 +100,30 @@ class FirestoreService {
       throw Exception(_getErrorMessage(e));
     } catch (e) {
       debugPrint('Unexpected error deleting note: $e');
+      throw Exception(_getErrorMessage(e));
+    }
+  }
+
+  // Get a single note by ID
+  Future<NoteModel?> getNoteById(String userId, String noteId) async {
+    try {
+      final doc =
+          await _firestore
+              .collection('users')
+              .doc(userId)
+              .collection('notes')
+              .doc(noteId)
+              .get();
+
+      if (doc.exists) {
+        return NoteModel.fromFirestore(doc);
+      }
+      return null;
+    } on FirebaseException catch (e) {
+      debugPrint('Firestore error getting note: ${e.code} - ${e.message}');
+      throw Exception(_getErrorMessage(e));
+    } catch (e) {
+      debugPrint('Unexpected error getting note: $e');
       throw Exception(_getErrorMessage(e));
     }
   }
@@ -1369,6 +1394,144 @@ I'm grateful for:
     } catch (e) {
       debugPrint('Unexpected error creating predefined templates: $e');
       throw Exception(_getErrorMessage(e));
+    }
+  }
+
+  // ==================== Template Sharing Methods ====================
+
+  // Export template to JSON format
+  String exportTemplate(TemplateModel template) {
+    try {
+      final exportData = {
+        'version': '1.0',
+        'exportedAt': DateTime.now().toIso8601String(),
+        'template': {
+          'name': template.name,
+          'description': template.description,
+          'content': template.content,
+          'variables': template.variables.map((v) => v.toMap()).toList(),
+          'isCustom': template.isCustom,
+        },
+      };
+
+      return jsonEncode(exportData);
+    } catch (e) {
+      debugPrint('Error exporting template: $e');
+      throw Exception('Failed to export template');
+    }
+  }
+
+  // Validate imported template structure
+  Map<String, dynamic>? validateImportedTemplate(String jsonString) {
+    try {
+      final Map<String, dynamic> data = jsonDecode(jsonString);
+
+      // Check required top-level fields
+      if (!data.containsKey('template')) {
+        throw Exception('Invalid template format: missing template data');
+      }
+
+      final template = data['template'] as Map<String, dynamic>;
+
+      // Check required template fields
+      final requiredFields = ['name', 'description', 'content'];
+      for (final field in requiredFields) {
+        if (!template.containsKey(field) || template[field] == null) {
+          throw Exception('Invalid template format: missing $field');
+        }
+      }
+
+      // Validate template name
+      final name = template['name'] as String;
+      if (name.trim().isEmpty) {
+        throw Exception('Template name cannot be empty');
+      }
+
+      // Validate variables if present
+      if (template.containsKey('variables') && template['variables'] != null) {
+        final variables = template['variables'] as List<dynamic>;
+        for (final variable in variables) {
+          if (variable is! Map<String, dynamic>) {
+            throw Exception('Invalid variable format');
+          }
+
+          final variableMap = variable as Map<String, dynamic>;
+          if (!variableMap.containsKey('name') ||
+              !variableMap.containsKey('placeholder')) {
+            throw Exception(
+              'Invalid variable format: missing name or placeholder',
+            );
+          }
+        }
+      }
+
+      return data;
+    } on FormatException {
+      throw Exception('Invalid JSON format');
+    } catch (e) {
+      if (e is Exception) {
+        rethrow;
+      }
+      debugPrint('Error validating template: $e');
+      throw Exception('Failed to validate template');
+    }
+  }
+
+  // Import template from JSON
+  Future<String> importTemplate(String userId, String jsonString) async {
+    try {
+      // Validate the imported template
+      final validatedData = validateImportedTemplate(jsonString);
+      if (validatedData == null) {
+        throw Exception('Invalid template data');
+      }
+
+      final templateData = validatedData['template'] as Map<String, dynamic>;
+
+      // Create TemplateModel from imported data
+      final template = TemplateModel(
+        id: '', // Will be set by Firestore
+        name: templateData['name'] as String,
+        description: templateData['description'] as String,
+        content: templateData['content'] as String,
+        variables:
+            (templateData['variables'] as List<dynamic>?)
+                ?.map(
+                  (v) => TemplateVariable.fromMap(v as Map<String, dynamic>),
+                )
+                .toList() ??
+            [],
+        usageCount: 0, // Reset usage count for imported templates
+        createdAt: DateTime.now(),
+        isCustom: true, // Imported templates are always custom
+      );
+
+      // Check if template with same name already exists
+      final existingTemplates = await getTemplates(userId);
+      final existingNames =
+          existingTemplates.map((t) => t.name.toLowerCase()).toSet();
+
+      String finalName = template.name;
+      int counter = 1;
+      while (existingNames.contains(finalName.toLowerCase())) {
+        finalName = '${template.name} ($counter)';
+        counter++;
+      }
+
+      // Create the template with unique name
+      final finalTemplate = template.copyWith(name: finalName);
+      return await createTemplate(userId, finalTemplate);
+    } on FirebaseException catch (e) {
+      debugPrint(
+        'Firestore error importing template: ${e.code} - ${e.message}',
+      );
+      throw Exception(_getErrorMessage(e));
+    } catch (e) {
+      if (e is Exception) {
+        rethrow;
+      }
+      debugPrint('Unexpected error importing template: $e');
+      throw Exception('Failed to import template');
     }
   }
 }

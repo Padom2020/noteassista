@@ -10,6 +10,8 @@ import 'edit_note_screen.dart';
 import 'voice_capture_screen.dart';
 import 'graph_view_screen.dart';
 import 'folder_view_screen.dart';
+import 'reminders_screen.dart';
+import 'statistics_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -352,6 +354,15 @@ class _HomeScreenState extends State<HomeScreen> {
                               color: Colors.grey[500],
                             ),
                           ),
+                          // Reminder indicator
+                          if (note.reminder != null) ...[
+                            const SizedBox(width: 8),
+                            Icon(
+                              Icons.notifications_active,
+                              size: 14,
+                              color: Colors.orange[700],
+                            ),
+                          ],
                         ],
                       ),
                     ],
@@ -639,6 +650,30 @@ class _HomeScreenState extends State<HomeScreen> {
               );
             },
             tooltip: 'Graph View',
+          ),
+          IconButton(
+            icon: const Icon(Icons.notifications),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const RemindersScreen(),
+                ),
+              );
+            },
+            tooltip: 'Reminders',
+          ),
+          IconButton(
+            icon: const Icon(Icons.bar_chart),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const StatisticsScreen(),
+                ),
+              );
+            },
+            tooltip: 'Statistics',
           ),
           IconButton(
             icon: const Icon(Icons.logout),

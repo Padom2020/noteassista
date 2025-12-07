@@ -24,6 +24,8 @@ import '../widgets/drawing_thumbnail_grid.dart';
 import '../screens/ocr_processing_screen.dart';
 import '../screens/drawing_screen.dart';
 import '../widgets/save_as_template_dialog.dart';
+import '../widgets/reminder_dialog.dart';
+import '../services/reminder_service.dart';
 
 class EditNoteScreen extends StatefulWidget {
   final NoteModel note;
@@ -44,6 +46,7 @@ class _EditNoteScreenState extends State<EditNoteScreen> {
   final LinkManagementService _linkService = LinkManagementService();
   final CollaborationService _collaborationService = CollaborationService();
   final OCRService _ocrService = OCRService();
+  final ReminderService _reminderService = ReminderService();
 
   late int _selectedCategoryIndex;
   bool _isLoading = false;
@@ -65,6 +68,9 @@ class _EditNoteScreenState extends State<EditNoteScreen> {
   String? _selectedFolderId;
   List<FolderModel> _folders = [];
 
+  // Reminder
+  ReminderModel? _reminder;
+
   @override
   void initState() {
     super.initState();
@@ -78,6 +84,7 @@ class _EditNoteScreenState extends State<EditNoteScreen> {
     _imageUrls = List<String>.from(widget.note.imageUrls);
     _drawingUrls = List<String>.from(widget.note.drawingUrls);
     _selectedFolderId = widget.note.folderId;
+    _reminder = widget.note.reminder;
 
     // Check permissions
     _checkPermissions();
@@ -363,7 +370,7 @@ class _EditNoteScreenState extends State<EditNoteScreen> {
         collaboratorIds: widget.note.collaboratorIds,
         collaborators: widget.note.collaborators,
         sourceUrl: widget.note.sourceUrl,
-        reminder: widget.note.reminder,
+        reminder: _reminder, // Use updated reminder
         viewCount: widget.note.viewCount,
         createdAt: widget.note.createdAt,
         ownerId: widget.note.ownerId, // Preserve owner
@@ -742,6 +749,36 @@ class _EditNoteScreenState extends State<EditNoteScreen> {
     );
   }
 
+  void _showReminderDialog() {
+    showDialog(
+      context: context,
+      builder:
+          (context) => ReminderDialog(
+            existingReminder: _reminder,
+            onReminderSet: (reminder) {
+              setState(() {
+                _reminder = reminder;
+              });
+              if (reminder != null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Reminder set successfully'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Reminder removed'),
+                    backgroundColor: Colors.orange,
+                  ),
+                );
+              }
+            },
+          ),
+    );
+  }
+
   Widget _buildFolderBreadcrumb() {
     if (_selectedFolderId == null) {
       return const SizedBox.shrink();
@@ -928,6 +965,18 @@ class _EditNoteScreenState extends State<EditNoteScreen> {
               icon: const Icon(Icons.brush),
               onPressed: _openDrawingScreen,
               tooltip: 'Create drawing',
+            ),
+          // Reminder button (only if can edit)
+          if (_canEdit)
+            IconButton(
+              icon: Icon(
+                _reminder != null
+                    ? Icons.notifications_active
+                    : Icons.notifications_none,
+                color: _reminder != null ? Colors.orange : null,
+              ),
+              onPressed: _showReminderDialog,
+              tooltip: 'Set reminder',
             ),
           // Share button
           if (userId != null)
