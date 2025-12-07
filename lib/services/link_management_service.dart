@@ -324,7 +324,10 @@ class LinkManagementService {
 
       // Count connections for each note
       for (final note in notes) {
-        connectionCounts[note.id] = note.outgoingLinks.length;
+        // Add outgoing links count
+        connectionCounts[note.id] =
+            (connectionCounts[note.id] ?? 0) + note.outgoingLinks.length;
+        // Add incoming links count for targets
         for (final link in note.outgoingLinks) {
           final targetId = titleToId[link];
           if (targetId != null) {

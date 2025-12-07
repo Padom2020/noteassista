@@ -185,6 +185,7 @@ class _VoiceCaptureScreenState extends State<VoiceCaptureScreen>
         timestamp: generateTimestamp(),
         categoryImageIndex: 0,
         isDone: false,
+        ownerId: userId, // Set the owner
       );
 
       await _firestoreService.createNote(userId, note);

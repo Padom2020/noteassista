@@ -7,10 +7,21 @@ import '../services/image_upload_service.dart';
 import '../services/ai_tagging_service.dart';
 import '../services/voice_service.dart';
 import '../services/link_management_service.dart';
+import '../services/ocr_service.dart';
 import '../models/note_model.dart';
+import '../models/folder_model.dart';
+import '../models/template_model.dart';
 import '../utils/timestamp_utils.dart';
 import '../widgets/tag_suggestion_chip.dart';
 import '../widgets/voice_capture_button.dart';
+import '../widgets/link_autocomplete_dropdown.dart';
+import '../widgets/image_thumbnail_grid.dart';
+import '../widgets/drawing_thumbnail_grid.dart';
+import '../screens/ocr_processing_screen.dart';
+import '../screens/template_library_screen.dart';
+import '../screens/drawing_screen.dart';
+import '../widgets/save_as_template_dialog.dart';
+import '../widgets/template_variable_input_dialog.dart';
 
 class AddNoteScreen extends StatefulWidget {
   const AddNoteScreen({super.key});
@@ -30,6 +41,7 @@ class _AddNoteScreenState extends State<AddNoteScreen> {
   final AITaggingService _aiTaggingService = AITaggingService();
   final VoiceService _voiceService = VoiceService();
   final LinkManagementService _linkService = LinkManagementService();
+  final OCRService _ocrService = OCRService();
 
   int _selectedCategoryIndex = 0;
   bool _isLoading = false;
@@ -40,6 +52,12 @@ class _AddNoteScreenState extends State<AddNoteScreen> {
   List<TagSuggestion> _tagSuggestions = [];
   final List<String> _audioUrls = [];
   String? _currentRecordingPath;
+  final List<String> _ocrImagePaths = [];
+  final List<String> _drawingUrls = [];
+
+  // Folder selection
+  String? _selectedFolderId;
+  List<FolderModel> _folders = [];
 
   final FocusNode _titleFocusNode = FocusNode();
   final FocusNode _descriptionFocusNode = FocusNode();
@@ -51,6 +69,23 @@ class _AddNoteScreenState extends State<AddNoteScreen> {
     // Listen to text changes to generate tag suggestions
     _titleController.addListener(_onContentChanged);
     _descriptionController.addListener(_onContentChanged);
+    _loadFolders();
+  }
+
+  Future<void> _loadFolders() async {
+    final userId = _authService.currentUser?.uid;
+    if (userId != null) {
+      try {
+        final folders = await _firestoreService.getFolders(userId);
+        if (mounted) {
+          setState(() {
+            _folders = folders;
+          });
+        }
+      } catch (e) {
+        // Handle error silently for now
+      }
+    }
   }
 
   @override
@@ -64,6 +99,7 @@ class _AddNoteScreenState extends State<AddNoteScreen> {
     _descriptionFocusNode.dispose();
     _tagsFocusNode.dispose();
     _voiceService.dispose();
+    _ocrService.dispose();
     super.dispose();
   }
 
@@ -313,6 +349,20 @@ class _AddNoteScreenState extends State<AddNoteScreen> {
         _audioUrls.add(audioUrl);
       }
 
+      // Upload OCR images if exist
+      final List<String> imageUrls = [];
+      if (_ocrImagePaths.isNotEmpty) {
+        final tempNoteId = DateTime.now().millisecondsSinceEpoch.toString();
+        for (final imagePath in _ocrImagePaths) {
+          final imageUrl = await _ocrService.uploadImage(
+            imagePath,
+            userId,
+            tempNoteId,
+          );
+          imageUrls.add(imageUrl);
+        }
+      }
+
       // Generate timestamp
       final timestamp = generateTimestamp();
 
@@ -337,8 +387,12 @@ class _AddNoteScreenState extends State<AddNoteScreen> {
         customImageUrl: imagePath,
         tags: _tags,
         audioUrls: _audioUrls,
+        imageUrls: imageUrls,
+        drawingUrls: _drawingUrls,
         wordCount: wordCount,
         outgoingLinks: outgoingLinks,
+        folderId: _selectedFolderId, // Set the selected folder
+        ownerId: userId, // Set the owner
       );
 
       // Save to Firestore
@@ -520,12 +574,372 @@ class _AddNoteScreenState extends State<AddNoteScreen> {
     _generateTagSuggestions();
   }
 
+  Future<void> _captureImagesForOCR() async {
+    try {
+      final ImagePicker picker = ImagePicker();
+
+      // Show dialog to choose single or multiple images
+      final choice = await showDialog<String>(
+        context: context,
+        builder:
+            (context) => AlertDialog(
+              title: const Text('Capture Images'),
+              content: const Text('How would you like to capture images?'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, 'cancel'),
+                  child: const Text('Cancel'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(context, 'single'),
+                  child: const Text('Single Image'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(context, 'multiple'),
+                  child: const Text('Multiple Images'),
+                ),
+              ],
+            ),
+      );
+
+      if (choice == null || choice == 'cancel') return;
+
+      List<File> images = [];
+
+      if (choice == 'single') {
+        // Capture single image
+        final XFile? photo = await picker.pickImage(
+          source: ImageSource.camera,
+          imageQuality: 85,
+        );
+
+        if (photo != null) {
+          images.add(File(photo.path));
+        }
+      } else {
+        // Capture multiple images from gallery
+        final List<XFile> photos = await picker.pickMultiImage(
+          imageQuality: 85,
+        );
+
+        images = photos.map((photo) => File(photo.path)).toList();
+      }
+
+      if (images.isEmpty) return;
+
+      // Navigate to OCR processing screen
+      if (mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder:
+                (context) => OCRProcessingScreen(
+                  images: images,
+                  onComplete: _onOCRComplete,
+                ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error capturing images: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _onOCRComplete(String extractedText, List<String> imagePaths) {
+    // Append extracted text to description
+    if (extractedText.isNotEmpty) {
+      final currentText = _descriptionController.text;
+      final newText =
+          currentText.isEmpty
+              ? extractedText
+              : '$currentText\n\n$extractedText';
+      _descriptionController.text = newText;
+
+      // Show success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Text extracted successfully'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+
+    // Store image paths for display
+    setState(() {
+      _ocrImagePaths.addAll(imagePaths);
+    });
+
+    // Trigger tag suggestions
+    _generateTagSuggestions();
+  }
+
+  Future<void> _openDrawingScreen() async {
+    final userId = _authService.currentUser?.uid;
+    if (userId == null) return;
+
+    // Create a temporary note ID for storage organization
+    final tempNoteId = DateTime.now().millisecondsSinceEpoch.toString();
+
+    final result = await Navigator.push<dynamic>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => DrawingScreen(userId: userId, noteId: tempNoteId),
+      ),
+    );
+
+    if (result != null) {
+      // Handle different return types from DrawingScreen
+      if (result is String) {
+        // Simple drawing URL
+        setState(() {
+          _drawingUrls.add(result);
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Drawing added successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } else if (result is Map<String, dynamic>) {
+        final type = result['type'] as String?;
+
+        if (type == 'text') {
+          // User chose to replace drawing with text
+          final text = result['content'] as String;
+          setState(() {
+            // Append recognized text to description
+            if (_descriptionController.text.isNotEmpty) {
+              _descriptionController.text += '\n\n$text';
+            } else {
+              _descriptionController.text = text;
+            }
+          });
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Handwriting converted to text'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+        } else if (type == 'both') {
+          // User chose to keep both drawing and text
+          final drawingUrl = result['drawingUrl'] as String;
+          final text = result['text'] as String;
+
+          setState(() {
+            _drawingUrls.add(drawingUrl);
+            // Append recognized text to description
+            if (_descriptionController.text.isNotEmpty) {
+              _descriptionController.text += '\n\n$text';
+            } else {
+              _descriptionController.text = text;
+            }
+          });
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Drawing and text added successfully'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+        }
+      }
+    }
+  }
+
+  Future<void> _openTemplateLibrary() async {
+    final selectedTemplate = await Navigator.push<TemplateModel>(
+      context,
+      MaterialPageRoute(builder: (context) => const TemplateLibraryScreen()),
+    );
+
+    if (selectedTemplate != null) {
+      await _applyTemplate(selectedTemplate);
+    }
+  }
+
+  Future<void> _applyTemplate(TemplateModel template) async {
+    // Check if template has variables
+    if (template.variables.isNotEmpty) {
+      // Show variable input dialog
+      await showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder:
+            (context) => TemplateVariableInputDialog(
+              variables: template.variables,
+              onComplete: (values) {
+                _applyTemplateWithValues(template, values);
+              },
+            ),
+      );
+    } else {
+      // Apply template directly without variables
+      _applyTemplateWithValues(template, {});
+    }
+  }
+
+  void _applyTemplateWithValues(
+    TemplateModel template,
+    Map<String, String> values,
+  ) {
+    String content = template.content;
+
+    // Replace all variables with user input
+    for (final entry in values.entries) {
+      final placeholder = '{{${entry.key}}}';
+      content = content.replaceAll(placeholder, entry.value);
+    }
+
+    // Pre-populate the note with processed template content
+    setState(() {
+      if (_titleController.text.isEmpty) {
+        _titleController.text = template.name;
+      }
+      _descriptionController.text = content;
+    });
+
+    // Increment template usage count
+    final userId = _authService.currentUser?.uid;
+    if (userId != null) {
+      _firestoreService.incrementTemplateUsage(userId, template.id).catchError((
+        e,
+      ) {
+        // Handle error silently - usage count update is not critical
+      });
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Template "${template.name}" applied'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+
+    // Trigger tag suggestions after applying template
+    _generateTagSuggestions();
+  }
+
+  Future<void> _saveAsTemplate() async {
+    final title = _titleController.text.trim();
+    final description = _descriptionController.text.trim();
+
+    if (title.isEmpty && description.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please add some content before saving as template'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    final userId = _authService.currentUser?.uid;
+    if (userId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please log in to save templates'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    await showDialog(
+      context: context,
+      builder:
+          (context) => SaveAsTemplateDialog(
+            noteTitle: title.isEmpty ? 'Untitled Template' : title,
+            noteContent: description,
+            onSave: (template) async {
+              try {
+                await _firestoreService.createTemplate(userId, template);
+
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Template "${template.name}" saved successfully',
+                      ),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error saving template: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            },
+          ),
+    );
+  }
+
+  void _onDrawingAdded(String drawingUrl) {
+    setState(() {
+      _drawingUrls.add(drawingUrl);
+    });
+  }
+
+  void _onDrawingRemoved(int index) {
+    setState(() {
+      _drawingUrls.removeAt(index);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    final userId = _authService.currentUser?.uid;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Add Note'),
         actions: [
+          // Create from template button
+          IconButton(
+            icon: const Icon(Icons.description_outlined),
+            onPressed: _openTemplateLibrary,
+            tooltip: 'Create from template',
+          ),
+          // Save as template button
+          IconButton(
+            icon: const Icon(Icons.save_alt),
+            onPressed: _saveAsTemplate,
+            tooltip: 'Save as template',
+          ),
+          // Camera button for OCR
+          IconButton(
+            icon: const Icon(Icons.camera_alt),
+            onPressed: _captureImagesForOCR,
+            tooltip: 'Capture image for text extraction',
+          ),
+          // Drawing button
+          IconButton(
+            icon: const Icon(Icons.brush),
+            onPressed: _openDrawingScreen,
+            tooltip: 'Create drawing',
+          ),
           // Voice capture button in app bar
           IconButton(
             icon: const Icon(Icons.mic),
@@ -572,211 +986,341 @@ class _AddNoteScreenState extends State<AddNoteScreen> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Title field
-              TextFormField(
-                controller: _titleController,
-                focusNode: _titleFocusNode,
-                decoration: const InputDecoration(labelText: 'Title'),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Please enter a title';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
+      body: Stack(
+        children: [
+          SingleChildScrollView(
+            padding: const EdgeInsets.all(16.0),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Title field
+                  TextFormField(
+                    controller: _titleController,
+                    focusNode: _titleFocusNode,
+                    decoration: const InputDecoration(labelText: 'Title'),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Please enter a title';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
 
-              // Description field
-              TextFormField(
-                controller: _descriptionController,
-                focusNode: _descriptionFocusNode,
-                maxLines: 5,
-                decoration: const InputDecoration(
-                  labelText: 'Description',
-                  alignLabelWithHint: true,
-                ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Please enter a description';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
+                  // Create from Template button
+                  OutlinedButton.icon(
+                    onPressed: _openTemplateLibrary,
+                    icon: const Icon(Icons.description_outlined),
+                    label: const Text('Create from Template'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 12,
+                        horizontal: 16,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
 
-              // Tags input field
-              TextFormField(
-                controller: _tagsController,
-                focusNode: _tagsFocusNode,
-                decoration: InputDecoration(
-                  labelText: 'Tags',
-                  hintText: 'Add a tag and press Enter',
-                  suffixIcon: IconButton(
-                    icon: const Icon(Icons.add),
-                    onPressed: () {
-                      if (_tagsController.text.isNotEmpty) {
-                        _addTag(_tagsController.text);
+                  // Description field
+                  TextFormField(
+                    controller: _descriptionController,
+                    focusNode: _descriptionFocusNode,
+                    maxLines: 5,
+                    decoration: const InputDecoration(
+                      labelText: 'Description',
+                      alignLabelWithHint: true,
+                      hintText: 'Type [[ to link to another note',
+                    ),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Please enter a description';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Tags input field
+                  TextFormField(
+                    controller: _tagsController,
+                    focusNode: _tagsFocusNode,
+                    decoration: InputDecoration(
+                      labelText: 'Tags',
+                      hintText: 'Add a tag and press Enter',
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.add),
+                        onPressed: () {
+                          if (_tagsController.text.isNotEmpty) {
+                            _addTag(_tagsController.text);
+                          }
+                        },
+                      ),
+                    ),
+                    onFieldSubmitted: (value) {
+                      if (value.isNotEmpty) {
+                        _addTag(value);
                       }
                     },
                   ),
-                ),
-                onFieldSubmitted: (value) {
-                  if (value.isNotEmpty) {
-                    _addTag(value);
-                  }
-                },
-              ),
-              const SizedBox(height: 8),
+                  const SizedBox(height: 8),
 
-              // Display added tags
-              if (_tags.isNotEmpty)
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children:
-                      _tags.map((tag) {
-                        return Chip(
-                          label: Text(tag),
-                          deleteIcon: const Icon(Icons.close, size: 18),
-                          onDeleted: () => _removeTag(tag),
-                        );
-                      }).toList(),
-                ),
-              if (_tags.isNotEmpty) const SizedBox(height: 8),
-
-              // Tag suggestions
-              TagSuggestionList(
-                suggestions: _tagSuggestions,
-                onTagAccepted: _addTag,
-                isLoading: _isLoadingSuggestions,
-              ),
-              const SizedBox(height: 24),
-
-              // Category selection label
-              const Text(
-                'Select Category',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 12),
-
-              // Category grid
-              _buildCategoryGrid(),
-              const SizedBox(height: 24),
-
-              // Audio recording section
-              const Text(
-                'Audio Attachment',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 12),
-
-              // Audio recording button
-              if (!_isRecordingAudio && _currentRecordingPath == null)
-                OutlinedButton.icon(
-                  onPressed: _startAudioRecording,
-                  icon: const Icon(Icons.mic),
-                  label: const Text('Record Audio'),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 12,
-                      horizontal: 16,
+                  // Display added tags
+                  if (_tags.isNotEmpty)
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children:
+                          _tags.map((tag) {
+                            return Chip(
+                              label: Text(tag),
+                              deleteIcon: const Icon(Icons.close, size: 18),
+                              onDeleted: () => _removeTag(tag),
+                            );
+                          }).toList(),
                     ),
-                  ),
-                ),
+                  if (_tags.isNotEmpty) const SizedBox(height: 8),
 
-              // Recording indicator
-              if (_isRecordingAudio)
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.red[50],
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.red[300]!),
+                  // Tag suggestions
+                  TagSuggestionList(
+                    suggestions: _tagSuggestions,
+                    onTagAccepted: _addTag,
+                    isLoading: _isLoadingSuggestions,
                   ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.fiber_manual_record, color: Colors.red[700]),
-                      const SizedBox(width: 12),
-                      const Expanded(
-                        child: Text(
-                          'Recording audio...',
-                          style: TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                      ElevatedButton(
-                        onPressed: _stopAudioRecording,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red[700],
-                        ),
-                        child: const Text('Stop'),
-                      ),
-                    ],
-                  ),
-                ),
+                  const SizedBox(height: 24),
 
-              // Show recorded audio indicator
-              if (_currentRecordingPath != null && !_isRecordingAudio)
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.green[50],
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.green[300]!),
+                  // Folder selection
+                  const Text(
+                    'Select Folder',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                   ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.check_circle, color: Colors.green[700]),
-                      const SizedBox(width: 12),
-                      const Expanded(
-                        child: Text(
-                          'Audio recorded (will be uploaded with note)',
-                          style: TextStyle(fontWeight: FontWeight.w600),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey[300]!),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String?>(
+                        value: _selectedFolderId,
+                        isExpanded: true,
+                        hint: const Row(
+                          children: [
+                            Icon(Icons.home, size: 18),
+                            SizedBox(width: 8),
+                            Text('Root Folder (No folder)'),
+                          ],
                         ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.close),
-                        onPressed: () {
+                        items: [
+                          const DropdownMenuItem<String?>(
+                            value: null,
+                            child: Row(
+                              children: [
+                                Icon(Icons.home, size: 18),
+                                SizedBox(width: 8),
+                                Text('Root Folder (No folder)'),
+                              ],
+                            ),
+                          ),
+                          ..._folders.map((folder) {
+                            return DropdownMenuItem<String?>(
+                              value: folder.id,
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 18,
+                                    height: 18,
+                                    decoration: BoxDecoration(
+                                      color: Color(
+                                        int.parse(
+                                          folder.color.replaceFirst(
+                                            '#',
+                                            '0xFF',
+                                          ),
+                                        ),
+                                      ),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      folder.name,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }),
+                        ],
+                        onChanged: (String? newValue) {
                           setState(() {
-                            _currentRecordingPath = null;
+                            _selectedFolderId = newValue;
                           });
                         },
                       ),
-                    ],
+                    ),
                   ),
-                ),
-              const SizedBox(height: 32),
+                  const SizedBox(height: 24),
 
-              // Create button
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _createNote,
-                  child:
-                      _isLoading
-                          ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                Colors.white,
-                              ),
+                  // Category selection label
+                  const Text(
+                    'Select Category',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Category grid
+                  _buildCategoryGrid(),
+                  const SizedBox(height: 24),
+
+                  // OCR Images section
+                  if (_ocrImagePaths.isNotEmpty) ...[
+                    ImageThumbnailGrid(
+                      imageUrls: _ocrImagePaths,
+                      isLocalPath: true,
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+
+                  // Drawings section
+                  if (userId != null) ...[
+                    DrawingThumbnailGrid(
+                      drawingUrls: _drawingUrls,
+                      userId: userId,
+                      noteId: DateTime.now().millisecondsSinceEpoch.toString(),
+                      onDrawingAdded: _onDrawingAdded,
+                      onDrawingRemoved: _onDrawingRemoved,
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+
+                  // Audio recording section
+                  const Text(
+                    'Audio Attachment',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Audio recording button
+                  if (!_isRecordingAudio && _currentRecordingPath == null)
+                    OutlinedButton.icon(
+                      onPressed: _startAudioRecording,
+                      icon: const Icon(Icons.mic),
+                      label: const Text('Record Audio'),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 12,
+                          horizontal: 16,
+                        ),
+                      ),
+                    ),
+
+                  // Recording indicator
+                  if (_isRecordingAudio)
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.red[50],
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.red[300]!),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.fiber_manual_record,
+                            color: Colors.red[700],
+                          ),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Text(
+                              'Recording audio...',
+                              style: TextStyle(fontWeight: FontWeight.w600),
                             ),
-                          )
-                          : const Text('Create Note'),
-                ),
+                          ),
+                          ElevatedButton(
+                            onPressed: _stopAudioRecording,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red[700],
+                            ),
+                            child: const Text('Stop'),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                  // Show recorded audio indicator
+                  if (_currentRecordingPath != null && !_isRecordingAudio)
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.green[50],
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.green[300]!),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.check_circle, color: Colors.green[700]),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Text(
+                              'Audio recorded (will be uploaded with note)',
+                              style: TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close),
+                            onPressed: () {
+                              setState(() {
+                                _currentRecordingPath = null;
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  const SizedBox(height: 32),
+
+                  // Create button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: _isLoading ? null : _createNote,
+                      child:
+                          _isLoading
+                              ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.white,
+                                  ),
+                                ),
+                              )
+                              : const Text('Create Note'),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
+          // Link autocomplete overlay
+          if (userId != null)
+            LinkAutocompleteDropdown(
+              textController: _descriptionController,
+              focusNode: _descriptionFocusNode,
+              userId: userId,
+              linkService: _linkService,
+            ),
+        ],
       ),
     );
   }

@@ -69,5 +69,48 @@
 	<!-- Speech recognition permission -->
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>NoteAssista needs access to speech recognition to convert your voice to text.</string>
+	
+	<!-- URL types for handling shared URLs -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.noteassista.app</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>noteassista</string>
+			</array>
+		</dict>
+	</array>
+	
+	<!-- Share extension configuration for web URLs -->
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Web URL</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.url</string>
+				<string>public.text</string>
+			</array>
+		</dict>
+	</array>
+	
+	<!-- App Groups for share extension -->
+	<key>NSExtension</key>
+	<dict>
+		<key>NSExtensionAttributes</key>
+		<dict>
+			<key>NSExtensionActivationRule</key>
+			<string>TRUEPREDICATE</string>
+			<key>NSExtensionActivationSupportsText</key>
+			<true/>
+			<key>NSExtensionActivationSupportsWebURLWithMaxCount</key>
+			<integer>1</integer>
+		</dict>
+	</dict>
 </dict>
 </plist>

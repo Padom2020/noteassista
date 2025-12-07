@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:receive_sharing_intent/receive_sharing_intent.dart';
+import 'dart:async';
 import 'firebase_options.dart';
 import 'screens/splash_screen.dart';
+import 'screens/web_clipper_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -9,12 +12,94 @@ void main() async {
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
+  StreamSubscription? _intentDataStreamSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _initSharingIntent();
+  }
+
+  @override
+  void dispose() {
+    _intentDataStreamSubscription?.cancel();
+    super.dispose();
+  }
+
+  /// Initialize sharing intent listeners
+  void _initSharingIntent() {
+    // For sharing while app is closed
+    ReceiveSharingIntent.instance.getInitialMedia().then((
+      List<SharedMediaFile> value,
+    ) {
+      if (value.isNotEmpty) {
+        final firstFile = value.first;
+        if (firstFile.path.startsWith('http')) {
+          _handleSharedText(firstFile.path);
+        }
+      }
+    });
+
+    // For sharing while app is open
+    _intentDataStreamSubscription = ReceiveSharingIntent.instance
+        .getMediaStream()
+        .listen(
+          (List<SharedMediaFile> value) {
+            if (value.isNotEmpty) {
+              final firstFile = value.first;
+              if (firstFile.path.startsWith('http')) {
+                _handleSharedText(firstFile.path);
+              }
+            }
+          },
+          onError: (err) {
+            debugPrint('Error receiving shared media: $err');
+          },
+        );
+  }
+
+  /// Handle shared text (URL)
+  void _handleSharedText(String text) {
+    // Check if the text is a URL
+    final urlPattern = RegExp(
+      r'^https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)$',
+    );
+
+    if (urlPattern.hasMatch(text)) {
+      // Navigate to web clipper screen
+      Future.delayed(const Duration(milliseconds: 500), () {
+        _navigatorKey.currentState?.push(
+          MaterialPageRoute(
+            builder: (context) => WebClipperScreen(sharedUrl: text),
+          ),
+        );
+      });
+    } else {
+      // If not a URL, show a message
+      Future.delayed(const Duration(milliseconds: 500), () {
+        final context = _navigatorKey.currentContext;
+        if (context != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Please share a valid URL')),
+          );
+        }
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: _navigatorKey,
       title: 'NoteAssista',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(

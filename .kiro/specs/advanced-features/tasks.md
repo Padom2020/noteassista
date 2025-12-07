@@ -169,7 +169,8 @@
   - Store outgoing links array in note document when saving
   - _Requirements: 24_
 
-- [ ] 13. Implement link autocomplete
+- [x] 13. Implement link autocomplete
+
   - Create LinkAutocompleteDropdown widget in lib/widgets/link_autocomplete_dropdown.dart
   - Detect [[ input in text field
   - Display dropdown with filtered note titles
@@ -178,15 +179,16 @@
   - Show note preview on hover
   - _Requirements: 24_
 
-- [ ] 14. Build backlinks display
+- [x] 14. Build backlinks display
   - Create BacklinksSection widget in lib/widgets/backlinks_section.dart
   - Display backlinks at bottom of note view
   - Show note title and preview for each backlink
   - Make backlinks clickable to navigate
+
   - Update backlinks in real-time when links change
   - _Requirements: 24_
 
-- [ ] 15. Implement graph view visualization
+- [x] 15. Implement graph view visualization
   - Create GraphViewScreen in lib/screens/graph_view_screen.dart
   - Implement force-directed layout algorithm using graphview package
   - Render nodes for each note with size based on connection count
@@ -201,8 +203,9 @@
   - Add smooth animations for node position updates
   - _Requirements: 25_
 
-- [ ] 15.1 Write tests for link management
 
+
+- [x] 15.1 Write tests for link management
   - Test link parsing with various formats
   - Test backlink computation
   - Test link updates on rename
@@ -212,14 +215,19 @@
 
 ## Phase 5: Real-time Collaborative Editing
 
-- [ ] 16. Set up Firebase Realtime Database for presence
+- [x] 16. Set up Firebase Realtime Database for presence
+
+
+
+
+
   - Initialize Firebase Realtime Database in Firebase console
   - Add firebase_database dependency configuration
   - Create presence data structure in Realtime Database
   - Set up Realtime Database security rules for presence
   - _Requirements: 26_
 
-- [ ] 17. Implement Collaboration Service
+- [x] 17. Implement Collaboration Service
   - Create CollaborationService class in lib/services/collaboration_service.dart
   - Implement shareNote() method to add collaborators
   - Implement getActiveCollaborators() stream method
@@ -232,7 +240,7 @@
   - Implement presence cleanup on disconnect
   - _Requirements: 26_
 
-- [ ] 18. Implement operational transform algorithm
+- [x] 18. Implement operational transform algorithm
   - Create OperationalTransform class in lib/utils/operational_transform.dart
   - Implement transform() method for concurrent operations
   - Handle insert operations
@@ -242,7 +250,7 @@
   - Implement operation inversion for undo
   - _Requirements: 26_
 
-- [ ] 19. Build collaboration UI components
+- [x] 19. Build collaboration UI components
   - Create CollaboratorAvatarList widget in lib/widgets/collaborator_avatar_list.dart
   - Display collaborator avatars in note header
   - Create CursorIndicator widget to show other users' cursors
@@ -254,7 +262,7 @@
   - Display presence indicators (viewing, editing, away)
   - _Requirements: 26_
 
-- [ ] 20. Implement collaboration permissions
+- [x] 20. Implement collaboration permissions
   - Update Firestore security rules for shared notes
   - Implement role-based access control (viewer, editor, owner)
   - Add collaborator management UI (add, remove, change role)
@@ -263,16 +271,17 @@
   - Display permission denied messages
   - _Requirements: 26_
 
-- [ ]* 20.1 Write tests for collaboration
+- [x] 20.1 Write tests for collaboration
   - Test operational transform algorithm
   - Test concurrent edit scenarios
   - Test presence updates
   - Test conflict resolution
   - _Requirements: 26_
 
+
 ## Phase 6: Rich Content Capture (OCR, Web Clipper, Drawing)
 
-- [ ] 21. Implement OCR Service
+- [x] 21. Implement OCR Service
   - Create OCRService class in lib/services/ocr_service.dart
   - Implement extractTextFromImage() using google_mlkit_text_recognition
   - Implement uploadImage() to Firebase Storage
@@ -282,7 +291,7 @@
   - Handle offline OCR processing
   - _Requirements: 29_
 
-- [ ] 22. Build image capture and OCR UI
+- [x] 22. Build image capture and OCR UI
   - Add camera button to AddNoteScreen and EditNoteScreen
   - Implement image picker integration
   - Create OCRProcessingScreen to show extraction progress
@@ -294,7 +303,7 @@
   - Support batch processing of multiple images
   - _Requirements: 29_
 
-- [ ] 23. Implement Web Clipper Service
+- [x] 23. Implement Web Clipper Service
   - Create WebClipperService class in lib/services/web_clipper_service.dart
   - Implement clipWebPage() method to fetch and parse web content
   - Implement extractMainContent() using readability algorithm
@@ -304,7 +313,7 @@
   - Handle authentication and paywalls gracefully
   - _Requirements: 30_
 
-- [ ] 24. Build web clipper integration
+- [x] 24. Build web clipper integration
   - Configure app as share target in AndroidManifest.xml and Info.plist
   - Create WebClipperScreen to handle shared URLs
   - Display web page preview while processing
@@ -314,7 +323,7 @@
   - Save featured image if available
   - _Requirements: 30_
 
-- [ ] 25. Implement drawing and handwriting support
+- [x] 25. Implement drawing and handwriting support
   - Create DrawingCanvas widget in lib/widgets/drawing_canvas.dart
   - Implement drawing tools (pen, highlighter, eraser, shapes)
   - Add color picker using flutter_colorpicker
@@ -324,17 +333,20 @@
   - Save drawing as image to Firebase Storage
   - Create DrawingScreen for full-screen drawing
   - Display drawing thumbnails inline with note text
+
+
+
   - Allow editing existing drawings
   - Support multiple drawings per note
   - _Requirements: 34_
 
-- [ ]* 25.1 Implement handwriting recognition
+- [x] 25.1 Implement handwriting recognition
   - Integrate handwriting recognition API
   - Convert handwritten text to typed text
   - Provide option to keep original drawing or replace with text
   - _Requirements: 34_
 
-- [ ]* 25.2 Write tests for OCR and web clipper
+- [x] 25.2 Write tests for OCR and web clipper
   - Test OCR with sample images
   - Test web content extraction
   - Test HTML to markdown conversion
@@ -344,7 +356,12 @@
 
 ## Phase 7: Folders and Organization
 
-- [ ] 26. Implement folder data layer
+- [x] 26. Implement folder data layer
+
+
+
+
+
   - Add folder CRUD methods to FirestoreService
   - Implement createFolder() method
   - Implement updateFolder() method
@@ -354,7 +371,7 @@
   - Update note queries to support folder filtering
   - _Requirements: 32_
 
-- [ ] 27. Build folder tree UI
+- [x] 27. Build folder tree UI
   - Create FolderTreeView widget in lib/widgets/folder_tree_view.dart
   - Implement expandable/collapsible tree structure
   - Display folder hierarchy with indentation
@@ -364,7 +381,7 @@
   - Implement folder navigation
   - _Requirements: 32_
 
-- [ ] 28. Implement folder management
+- [x] 28. Implement folder management
   - Create CreateFolderDialog widget
   - Create RenameFolderDialog widget
   - Implement folder deletion with confirmation
@@ -375,7 +392,12 @@
   - Support nested folders up to 5 levels
   - _Requirements: 32_
 
-- [ ] 29. Integrate folders into home screen
+- [x] 29. Integrate folders into home screen
+
+
+
+
+
   - Add folder view tab or drawer to home screen
   - Display notes grouped by folder
   - Add folder filter dropdown
@@ -386,7 +408,7 @@
 
 ## Phase 8: Templates Library
 
-- [ ] 30. Implement template data layer
+- [x] 30. Implement template data layer
   - Add template CRUD methods to FirestoreService
   - Implement createTemplate() method
   - Implement updateTemplate() method
@@ -396,7 +418,7 @@
   - Create predefined templates (meeting notes, project plan, daily journal, book notes, recipe)
   - _Requirements: 35_
 
-- [ ] 31. Build template library UI
+- [x] 31. Build template library UI
   - Create TemplateLibraryScreen in lib/screens/template_library_screen.dart
   - Display templates in grid view with preview thumbnails
   - Show template name and description
@@ -405,7 +427,7 @@
   - Add search/filter for templates
   - _Requirements: 35_
 
-- [ ] 32. Implement template creation and usage
+- [x] 32. Implement template creation and usage
   - Add "Create from Template" button to AddNoteScreen
   - Pre-populate note with template content when selected
   - Create SaveAsTemplateDialog to save custom templates

@@ -112,11 +112,13 @@ class NoteModel {
   final List<String> drawingUrls;
   final String? folderId;
   final bool isShared;
-  final List<String> collaboratorIds;
+  final List<String> collaboratorIds; // Deprecated: use collaborators instead
+  final List<Map<String, dynamic>> collaborators; // New: stores role info
   final String? sourceUrl;
   final ReminderModel? reminder;
   final int viewCount;
   final int wordCount;
+  final String? ownerId; // Owner of the note
 
   NoteModel({
     required this.id,
@@ -137,10 +139,12 @@ class NoteModel {
     this.folderId,
     this.isShared = false,
     this.collaboratorIds = const [],
+    this.collaborators = const [],
     this.sourceUrl,
     this.reminder,
     this.viewCount = 0,
     this.wordCount = 0,
+    this.ownerId,
   }) : createdAt = createdAt ?? DateTime.now(),
        updatedAt = updatedAt ?? DateTime.now();
 
@@ -163,10 +167,12 @@ class NoteModel {
       'folderId': folderId,
       'isShared': isShared,
       'collaboratorIds': collaboratorIds,
+      'collaborators': collaborators,
       'sourceUrl': sourceUrl,
       'reminder': reminder?.toMap(),
       'viewCount': viewCount,
       'wordCount': wordCount,
+      'ownerId': ownerId,
     };
   }
 
@@ -197,6 +203,14 @@ class NoteModel {
       folderId: data['folderId'],
       isShared: data['isShared'] ?? false,
       collaboratorIds: List<String>.from(data['collaboratorIds'] ?? []),
+      collaborators:
+          data['collaborators'] != null
+              ? List<Map<String, dynamic>>.from(
+                (data['collaborators'] as List).map(
+                  (item) => Map<String, dynamic>.from(item as Map),
+                ),
+              )
+              : [],
       sourceUrl: data['sourceUrl'],
       reminder:
           data['reminder'] != null
@@ -204,6 +218,7 @@ class NoteModel {
               : null,
       viewCount: data['viewCount'] ?? 0,
       wordCount: data['wordCount'] ?? 0,
+      ownerId: data['ownerId'],
     );
   }
 }

@@ -1,0 +1,29 @@
+{
+  "rules": {
+    "presence": {
+      "$noteId": {
+        ".read": "auth != null",
+        ".write": "auth != null",
+        "$userId": {
+          ".validate": "newData.hasChildren(['status', 'lastSeen', 'displayName', 'email'])",
+          "status": {
+            ".validate": "newData.isString() && (newData.val() == 'viewing' || newData.val() == 'editing' || newData.val() == 'away')"
+          },
+          "cursorPosition": {
+            ".validate": "newData.isNumber()"
+          },
+          "lastSeen": {
+            ".validate": "newData.isNumber()"
+          },
+          "displayName": {
+            ".validate": "newData.isString()"
+          },
+          "email": {
+            ".validate": "newData.isString()"
+          },
+          ".write": "auth.uid == $userId"
+        }
+      }
+    }
+  }
+}

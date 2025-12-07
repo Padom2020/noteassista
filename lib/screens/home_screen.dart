@@ -3,10 +3,13 @@ import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
 import '../models/note_model.dart';
+import '../models/folder_model.dart';
 import '../widgets/clickable_note_link.dart';
 import 'add_note_screen.dart';
 import 'edit_note_screen.dart';
 import 'voice_capture_screen.dart';
+import 'graph_view_screen.dart';
+import 'folder_view_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -22,10 +25,32 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isFabVisible = true;
   double _lastScrollPosition = 0.0;
 
+  // Folder filtering state
+  String? _selectedFolderId;
+  String _selectedFolderName = 'All Notes';
+  List<FolderModel> _folders = [];
+
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_handleScroll);
+    _loadFolders();
+  }
+
+  Future<void> _loadFolders() async {
+    final userId = _authService.currentUser?.uid;
+    if (userId != null) {
+      try {
+        final folders = await _firestoreService.getFolders(userId);
+        if (mounted) {
+          setState(() {
+            _folders = folders;
+          });
+        }
+      } catch (e) {
+        // Handle error silently for now
+      }
+    }
   }
 
   @override
@@ -351,7 +376,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildNotesStream(String userId, bool isDone, String emptyMessage) {
     return StreamBuilder(
-      stream: _firestoreService.streamNotes(userId, isDone),
+      stream: _firestoreService.streamNotesByFolder(
+        userId,
+        _selectedFolderId,
+        isDone: isDone,
+      ),
       builder: (context, snapshot) {
         // Loading state
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -402,6 +431,171 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Widget _buildFolderFilterDropdown() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[300]!),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.folder_outlined,
+            color: Theme.of(context).colorScheme.primary,
+            size: 20,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String?>(
+                value: _selectedFolderId,
+                isExpanded: true,
+                hint: Text(
+                  _selectedFolderName,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 16,
+                  ),
+                ),
+                items: [
+                  const DropdownMenuItem<String?>(
+                    value: null,
+                    child: Row(
+                      children: [
+                        Icon(Icons.home, size: 18),
+                        SizedBox(width: 8),
+                        Text('All Notes'),
+                      ],
+                    ),
+                  ),
+                  ..._folders.map((folder) {
+                    return DropdownMenuItem<String?>(
+                      value: folder.id,
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 18,
+                            height: 18,
+                            decoration: BoxDecoration(
+                              color: Color(
+                                int.parse(
+                                  folder.color.replaceFirst('#', '0xFF'),
+                                ),
+                              ),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              folder.name,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (folder.noteCount > 0) ...[
+                            const SizedBox(width: 4),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.grey[200],
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                '${folder.noteCount}',
+                                style: const TextStyle(fontSize: 12),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    );
+                  }),
+                ],
+                onChanged: (String? newValue) {
+                  setState(() {
+                    _selectedFolderId = newValue;
+                    if (newValue == null) {
+                      _selectedFolderName = 'All Notes';
+                    } else {
+                      final folder = _folders.firstWhere(
+                        (f) => f.id == newValue,
+                      );
+                      _selectedFolderName = folder.name;
+                    }
+                  });
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFolderBreadcrumb() {
+    if (_selectedFolderId == null) {
+      return const SizedBox.shrink();
+    }
+
+    final folder = _folders.firstWhere((f) => f.id == _selectedFolderId);
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: Color(
+          int.parse(folder.color.replaceFirst('#', '0xFF')),
+        ).withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: Color(
+            int.parse(folder.color.replaceFirst('#', '0xFF')),
+          ).withValues(alpha: 0.3),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.folder,
+            color: Color(int.parse(folder.color.replaceFirst('#', '0xFF'))),
+            size: 18,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            'Viewing: ${folder.name}',
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: Color(int.parse(folder.color.replaceFirst('#', '0xFF'))),
+            ),
+          ),
+          const Spacer(),
+          TextButton(
+            onPressed: () {
+              setState(() {
+                _selectedFolderId = null;
+                _selectedFolderName = 'All Notes';
+              });
+            },
+            child: const Text('View All'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final userId = _authService.currentUser?.uid ?? '';
@@ -423,6 +617,30 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         actions: [
           IconButton(
+            icon: const Icon(Icons.folder_outlined),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const FolderViewScreen(),
+                ),
+              );
+            },
+            tooltip: 'Folders',
+          ),
+          IconButton(
+            icon: const Icon(Icons.account_tree),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const GraphViewScreen(),
+                ),
+              );
+            },
+            tooltip: 'Graph View',
+          ),
+          IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {
               await _authService.signOut();
@@ -432,22 +650,46 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       body: ListView(
         controller: _scrollController,
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.symmetric(vertical: 8.0),
         children: [
+          // Folder filter dropdown
+          _buildFolderFilterDropdown(),
+
+          // Folder breadcrumb (only show when folder is selected)
+          _buildFolderBreadcrumb(),
+
+          const SizedBox(height: 8),
+
           // Not Done Section
-          _buildSectionHeader(
-            'Not Done',
-            Icons.radio_button_unchecked,
-            Theme.of(context).colorScheme.primary,
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: _buildSectionHeader(
+              'Not Done',
+              Icons.radio_button_unchecked,
+              Theme.of(context).colorScheme.primary,
+            ),
           ),
           const SizedBox(height: 16),
-          _buildNotesStream(userId, false, 'No active notes yet'),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: _buildNotesStream(userId, false, 'No active notes yet'),
+          ),
           const SizedBox(height: 32),
 
           // Done Section
-          _buildSectionHeader('Done', Icons.check_circle, Colors.green[600]!),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: _buildSectionHeader(
+              'Done',
+              Icons.check_circle,
+              Colors.green[600]!,
+            ),
+          ),
           const SizedBox(height: 16),
-          _buildNotesStream(userId, true, 'No completed notes yet'),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: _buildNotesStream(userId, true, 'No completed notes yet'),
+          ),
         ],
       ),
       floatingActionButton: AnimatedSlide(

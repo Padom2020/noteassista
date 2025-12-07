@@ -1,0 +1,105 @@
+// Firestore Security Rules for Collaboration Permissions
+// These rules should be added to your firestore.rules file
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if user is the note owner
+    function isNoteOwner(userId, noteId) {
+      let note = get(/databases/$(database)/documents/users/$(userId)/notes/$(noteId));
+      return request.auth.uid == userId || 
+             (note.data.ownerId != null && request.auth.uid == note.data.ownerId);
+    }
+    
+    // Helper function to check if user is a collaborator
+    function isCollaborator(userId, noteId) {
+      let note = get(/databases/$(database)/documents/users/$(userId)/notes/$(noteId));
+      return request.auth.uid in note.data.collaboratorIds;
+    }
+    
+    // Helper function to get user's role for a note
+    function getUserRole(userId, noteId) {
+      let note = get(/databases/$(database)/documents/users/$(userId)/notes/$(noteId));
+      let collaborators = note.data.collaborators;
+      
+      // Owner has owner role
+      if (request.auth.uid == userId || 
+          (note.data.ownerId != null && request.auth.uid == note.data.ownerId)) {
+        return 'owner';
+      }
+      
+      // Find user in collaborators list
+      return collaborators.hasAny([request.auth.uid]) ? 
+             collaborators.where(c => c.userId == request.auth.uid)[0].role : 
+             null;
+    }
+    
+    // Helper function to check if user can edit
+    function canEdit(userId, noteId) {
+      let role = getUserRole(userId, noteId);
+      return role == 'CollaboratorRole.owner' || 
+             role == 'CollaboratorRole.editor';
+    }
+    
+    // Helper function to check if user can view
+    function canView(userId, noteId) {
+      let role = getUserRole(userId, noteId);
+      return role != null;
+    }
+    
+    match /users/{userId} {
+      // User document rules
+      allow read: if request.auth.uid == userId;
+      allow write: if request.auth.uid == userId;
+      
+      match /notes/{noteId} {
+        // Owner has full access
+        allow read: if request.auth.uid == userId;
+        allow create: if request.auth.uid == userId;
+        allow update: if request.auth.uid == userId;
+        allow delete: if request.auth.uid == userId;
+        
+        // Collaborators have access based on role
+        // Read access for all collaborators
+        allow read: if isCollaborator(userId, noteId) || canView(userId, noteId);
+        
+        // Write access only for editors and owners
+        allow update: if canEdit(userId, noteId);
+        
+        // Only owner can delete
+        allow delete: if isNoteOwner(userId, noteId);
+      }
+      
+      match /folders/{folderId} {
+        allow read, write: if request.auth.uid == userId;
+      }
+      
+      match /templates/{templateId} {
+        allow read, write: if request.auth.uid == userId;
+      }
+    }
+  }
+}
+
+// Firebase Realtime Database Rules for Presence
+// These rules should be added to your database.rules.json file
+{
+  "rules": {
+    "presence": {
+      "$noteId": {
+        "$userId": {
+          ".read": true,
+          ".write": "$userId === auth.uid"
+        }
+      }
+    },
+    "changes": {
+      "$noteId": {
+        ".read": true,
+        ".write": true,
+        ".indexOn": ["timestamp"]
+      }
+    }
+  }
+}
