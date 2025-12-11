@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/link_management_service.dart';
+import '../utils/performance_utils.dart';
 
 /// Screen that displays an interactive graph visualization of note connections
 class GraphViewScreen extends StatefulWidget {
@@ -12,7 +13,7 @@ class GraphViewScreen extends StatefulWidget {
 }
 
 class _GraphViewScreenState extends State<GraphViewScreen>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, DebounceMixin {
   final LinkManagementService _linkService = LinkManagementService();
   final TransformationController _transformationController =
       TransformationController();
@@ -282,6 +283,29 @@ class _GraphViewScreenState extends State<GraphViewScreen>
               onChanged: _applySearchFilter,
             ),
           ),
+          // Help banner
+          if (!_isLoading && _graphData != null && _graphData!.nodes.isNotEmpty)
+            Container(
+              margin: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.blue[50],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue[200]!),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, color: Colors.blue[700], size: 18),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'Tap a node to highlight connections. Double-tap to open note. Pinch to zoom.',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           // Graph canvas
           Expanded(child: _buildGraphContent()),
         ],
@@ -380,13 +404,13 @@ class GraphPainter extends CustomPainter {
   void _drawEdges(Canvas canvas, double centerX, double centerY) {
     final edgePaint =
         Paint()
-          ..color = Colors.grey.withOpacity(0.3)
+          ..color = Colors.grey.withValues(alpha: 0.3)
           ..strokeWidth = 1.5
           ..style = PaintingStyle.stroke;
 
     final highlightedEdgePaint =
         Paint()
-          ..color = Colors.blue.withOpacity(0.6)
+          ..color = Colors.blue.withValues(alpha: 0.6)
           ..strokeWidth = 2.5
           ..style = PaintingStyle.stroke;
 
@@ -502,7 +526,7 @@ class GraphPainter extends CustomPainter {
 
     final backgroundPaint =
         Paint()
-          ..color = Colors.white.withOpacity(0.9)
+          ..color = Colors.white.withValues(alpha: 0.9)
           ..style = PaintingStyle.fill;
 
     canvas.drawRRect(backgroundRect, backgroundPaint);

@@ -39,7 +39,7 @@ class WebClipperService {
 
   /// Get Firebase Storage instance (lazy initialization)
   FirebaseStorage get _storageInstance {
-    if (_storage != null) return _storage!;
+    if (_storage != null) return _storage;
     return FirebaseStorage.instance;
   }
 

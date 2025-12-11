@@ -87,7 +87,7 @@ class _CollaboratorAvatar extends StatelessWidget {
             width: 32,
             height: 32,
             decoration: BoxDecoration(
-              color: collaborator.cursorColor.withOpacity(0.3),
+              color: collaborator.cursorColor.withValues(alpha: 0.3),
               shape: BoxShape.circle,
               border: Border.all(color: collaborator.cursorColor, width: 2),
             ),

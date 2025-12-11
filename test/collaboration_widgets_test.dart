@@ -1,8 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:noteassista/widgets/collaborator_avatar_list.dart';
-import 'package:noteassista/widgets/cursor_indicator.dart';
-import 'package:noteassista/widgets/share_note_dialog.dart';
 import 'package:noteassista/services/collaboration_service.dart';
 
 void main() {

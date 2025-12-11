@@ -4,6 +4,7 @@ import '../services/firestore_service.dart';
 import '../models/template_model.dart';
 import '../widgets/share_template_dialog.dart';
 import '../widgets/import_template_dialog.dart';
+import '../widgets/feature_tooltip.dart';
 
 class TemplateLibraryScreen extends StatefulWidget {
   const TemplateLibraryScreen({super.key});
@@ -404,10 +405,15 @@ class _TemplateLibraryScreenState extends State<TemplateLibraryScreen> {
         foregroundColor: Colors.black,
         elevation: 0,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.file_download),
-            onPressed: _showImportDialog,
-            tooltip: 'Import Template',
+          FeatureTooltip(
+            tooltipId: 'template_import_feature',
+            message: 'Import templates shared by others',
+            direction: TooltipDirection.bottom,
+            child: IconButton(
+              icon: const Icon(Icons.file_download),
+              onPressed: _showImportDialog,
+              tooltip: 'Import Template',
+            ),
           ),
         ],
         bottom: PreferredSize(
@@ -418,6 +424,29 @@ class _TemplateLibraryScreenState extends State<TemplateLibraryScreen> {
       body: Column(
         children: [
           _buildSearchBar(),
+          // Info banner
+          if (!_isLoading && _filteredTemplates.isNotEmpty)
+            Container(
+              margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue[50],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue[200]!),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, color: Colors.blue[700], size: 20),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'Tap a template to use it. Long-press for options.',
+                      style: TextStyle(fontSize: 13),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           Expanded(
             child:
                 _isLoading

@@ -3,8 +3,15 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../services/statistics_service.dart';
 import '../models/statistics_model.dart';
 import '../models/note_model.dart';
+import '../widgets/feature_tooltip.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:math' as math;
+import 'package:screenshot/screenshot.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
 
 class StatisticsScreen extends StatefulWidget {
   const StatisticsScreen({super.key});
@@ -16,7 +23,9 @@ class StatisticsScreen extends StatefulWidget {
 class _StatisticsScreenState extends State<StatisticsScreen> {
   final StatisticsService _statisticsService = StatisticsService();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final ScreenshotController _screenshotController = ScreenshotController();
   bool _isLoading = true;
+  bool _isExporting = false;
   StatisticsModel? _statistics;
   List<NoteModel> _recentNotes = [];
   NoteModel? _longestNote;
@@ -99,6 +108,51 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
         title: const Text('Statistics'),
         backgroundColor: Colors.deepPurple,
         foregroundColor: Colors.white,
+        actions: [
+          if (_statistics != null && !_isLoading)
+            FeatureTooltip(
+              tooltipId: 'statistics_export_feature',
+              message: 'Export your statistics as text, image, or PDF',
+              direction: TooltipDirection.bottom,
+              child: PopupMenuButton<String>(
+                icon: const Icon(Icons.share),
+                onSelected: _handleExportOption,
+                itemBuilder:
+                    (context) => [
+                      const PopupMenuItem(
+                        value: 'text',
+                        child: Row(
+                          children: [
+                            Icon(Icons.text_fields),
+                            SizedBox(width: 8),
+                            Text('Export as Text'),
+                          ],
+                        ),
+                      ),
+                      const PopupMenuItem(
+                        value: 'image',
+                        child: Row(
+                          children: [
+                            Icon(Icons.image),
+                            SizedBox(width: 8),
+                            Text('Export as Image'),
+                          ],
+                        ),
+                      ),
+                      const PopupMenuItem(
+                        value: 'pdf',
+                        child: Row(
+                          children: [
+                            Icon(Icons.picture_as_pdf),
+                            SizedBox(width: 8),
+                            Text('Export as PDF'),
+                          ],
+                        ),
+                      ),
+                    ],
+              ),
+            ),
+        ],
       ),
       body:
           _isLoading
@@ -130,34 +184,63 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
               )
               : _statistics == null
               ? const Center(child: Text('No statistics available'))
-              : RefreshIndicator(
-                onRefresh: _loadStatistics,
-                child: SingleChildScrollView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildOverviewCards(),
-                      const SizedBox(height: 24),
-                      _buildStreakSection(),
-                      const SizedBox(height: 24),
-                      _buildCalendarHeatmap(),
-                      const SizedBox(height: 24),
-                      _buildTagFrequencyChart(),
-                      const SizedBox(height: 24),
-                      _buildCreationTrendChart(),
-                      const SizedBox(height: 24),
-                      _buildCompletionRate(),
-                      const SizedBox(height: 24),
-                      _buildMostUsedTags(),
-                      const SizedBox(height: 24),
-                      _buildRecentNotes(),
-                      const SizedBox(height: 24),
-                      _buildLongestNote(),
-                    ],
+              : Stack(
+                children: [
+                  Screenshot(
+                    controller: _screenshotController,
+                    child: Container(
+                      color: Colors.white,
+                      child: RefreshIndicator(
+                        onRefresh: _loadStatistics,
+                        child: SingleChildScrollView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildOverviewCards(),
+                              const SizedBox(height: 24),
+                              _buildStreakSection(),
+                              const SizedBox(height: 24),
+                              _buildCalendarHeatmap(),
+                              const SizedBox(height: 24),
+                              _buildTagFrequencyChart(),
+                              const SizedBox(height: 24),
+                              _buildCreationTrendChart(),
+                              const SizedBox(height: 24),
+                              _buildCompletionRate(),
+                              const SizedBox(height: 24),
+                              _buildMostUsedTags(),
+                              const SizedBox(height: 24),
+                              _buildRecentNotes(),
+                              const SizedBox(height: 24),
+                              _buildLongestNote(),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
-                ),
+                  if (_isExporting)
+                    Container(
+                      color: Colors.black54,
+                      child: const Center(
+                        child: Card(
+                          child: Padding(
+                            padding: EdgeInsets.all(24),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                CircularProgressIndicator(),
+                                SizedBox(height: 16),
+                                Text('Exporting statistics...'),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
     );
   }
@@ -805,5 +888,295 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     } else {
       return '${date.month}/${date.day}/${date.year}';
     }
+  }
+
+  Future<void> _handleExportOption(String option) async {
+    setState(() {
+      _isExporting = true;
+    });
+
+    try {
+      switch (option) {
+        case 'text':
+          await _exportAsText();
+          break;
+        case 'image':
+          await _exportAsImage();
+          break;
+        case 'pdf':
+          await _exportAsPdf();
+          break;
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Export failed: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isExporting = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _exportAsText() async {
+    final text = _generateStatisticsReport();
+    final directory = await getTemporaryDirectory();
+    final file = File('${directory.path}/statistics_report.txt');
+    await file.writeAsString(text);
+
+    await Share.shareXFiles(
+      [XFile(file.path)],
+      subject: 'NoteAssista Statistics Report',
+      text: 'My note-taking statistics from NoteAssista',
+    );
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Statistics exported as text'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  }
+
+  String _generateStatisticsReport() {
+    final buffer = StringBuffer();
+    buffer.writeln('NoteAssista Statistics Report');
+    buffer.writeln('Generated: ${DateTime.now().toString().split('.')[0]}');
+    buffer.writeln('=' * 50);
+    buffer.writeln();
+
+    // Overview
+    buffer.writeln('OVERVIEW');
+    buffer.writeln('-' * 50);
+    buffer.writeln('Total Notes: ${_statistics!.totalNotes}');
+    buffer.writeln('Notes This Week: ${_statistics!.notesThisWeek}');
+    buffer.writeln('Notes This Month: ${_statistics!.notesThisMonth}');
+    buffer.writeln('Total Word Count: ${_statistics!.totalWordCount}');
+    buffer.writeln();
+
+    // Streaks
+    buffer.writeln('STREAKS');
+    buffer.writeln('-' * 50);
+    buffer.writeln('Current Streak: ${_statistics!.currentStreak} days');
+    buffer.writeln('Longest Streak: ${_statistics!.longestStreak} days');
+    buffer.writeln();
+
+    // Completion Rate
+    buffer.writeln('COMPLETION RATE');
+    buffer.writeln('-' * 50);
+    buffer.writeln(
+      '${_statistics!.completionRate.toStringAsFixed(1)}% of notes completed',
+    );
+    buffer.writeln();
+
+    // Tag Frequency
+    if (_statistics!.tagFrequency.isNotEmpty) {
+      buffer.writeln('TOP TAGS');
+      buffer.writeln('-' * 50);
+      final sortedTags =
+          _statistics!.tagFrequency.entries.toList()
+            ..sort((a, b) => b.value.compareTo(a.value));
+      for (var i = 0; i < math.min(10, sortedTags.length); i++) {
+        final entry = sortedTags[i];
+        buffer.writeln('${i + 1}. ${entry.key}: ${entry.value} uses');
+      }
+      buffer.writeln();
+    }
+
+    // Longest Note
+    if (_longestNote != null && _longestNote!.wordCount > 0) {
+      buffer.writeln('LONGEST NOTE');
+      buffer.writeln('-' * 50);
+      buffer.writeln('Title: ${_longestNote!.title}');
+      buffer.writeln('Word Count: ${_longestNote!.wordCount}');
+      buffer.writeln();
+    }
+
+    // Recent Notes
+    if (_recentNotes.isNotEmpty) {
+      buffer.writeln('RECENTLY MODIFIED NOTES');
+      buffer.writeln('-' * 50);
+      for (var i = 0; i < math.min(5, _recentNotes.length); i++) {
+        final note = _recentNotes[i];
+        buffer.writeln(
+          '${i + 1}. ${note.title} - ${_formatDate(note.updatedAt)}',
+        );
+      }
+      buffer.writeln();
+    }
+
+    buffer.writeln('=' * 50);
+    buffer.writeln('End of Report');
+
+    return buffer.toString();
+  }
+
+  Future<void> _exportAsImage() async {
+    final imageBytes = await _screenshotController.capture();
+    if (imageBytes == null) {
+      throw Exception('Failed to capture screenshot');
+    }
+
+    final directory = await getTemporaryDirectory();
+    final file = File('${directory.path}/statistics_report.png');
+    await file.writeAsBytes(imageBytes);
+
+    await Share.shareXFiles(
+      [XFile(file.path)],
+      subject: 'NoteAssista Statistics Report',
+      text: 'My note-taking statistics from NoteAssista',
+    );
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Statistics exported as image'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  }
+
+  Future<void> _exportAsPdf() async {
+    final pdf = pw.Document();
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(32),
+        build:
+            (context) => [
+              pw.Header(
+                level: 0,
+                child: pw.Text(
+                  'NoteAssista Statistics Report',
+                  style: pw.TextStyle(
+                    fontSize: 24,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+              ),
+              pw.Paragraph(
+                text: 'Generated: ${DateTime.now().toString().split('.')[0]}',
+                style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey),
+              ),
+              pw.SizedBox(height: 20),
+              _buildPdfSection('Overview', [
+                'Total Notes: ${_statistics!.totalNotes}',
+                'Notes This Week: ${_statistics!.notesThisWeek}',
+                'Notes This Month: ${_statistics!.notesThisMonth}',
+                'Total Word Count: ${_statistics!.totalWordCount}',
+              ]),
+              pw.SizedBox(height: 20),
+              _buildPdfSection('Streaks', [
+                'Current Streak: ${_statistics!.currentStreak} days',
+                'Longest Streak: ${_statistics!.longestStreak} days',
+              ]),
+              pw.SizedBox(height: 20),
+              _buildPdfSection('Completion Rate', [
+                '${_statistics!.completionRate.toStringAsFixed(1)}% of notes completed',
+              ]),
+              if (_statistics!.tagFrequency.isNotEmpty) ...[
+                pw.SizedBox(height: 20),
+                _buildPdfSection('Top Tags', () {
+                  final sortedTags =
+                      _statistics!.tagFrequency.entries.toList()
+                        ..sort((a, b) => b.value.compareTo(a.value));
+                  return sortedTags
+                      .take(10)
+                      .map((e) => '${e.key}: ${e.value} uses')
+                      .toList();
+                }()),
+              ],
+              if (_longestNote != null && _longestNote!.wordCount > 0) ...[
+                pw.SizedBox(height: 20),
+                _buildPdfSection('Longest Note', [
+                  'Title: ${_longestNote!.title}',
+                  'Word Count: ${_longestNote!.wordCount}',
+                ]),
+              ],
+              if (_recentNotes.isNotEmpty) ...[
+                pw.SizedBox(height: 20),
+                _buildPdfSection(
+                  'Recently Modified Notes',
+                  _recentNotes
+                      .take(5)
+                      .map(
+                        (note) =>
+                            '${note.title} - ${_formatDate(note.updatedAt)}',
+                      )
+                      .toList(),
+                ),
+              ],
+            ],
+      ),
+    );
+
+    final directory = await getTemporaryDirectory();
+    final file = File('${directory.path}/statistics_report.pdf');
+    await file.writeAsBytes(await pdf.save());
+
+    await Share.shareXFiles(
+      [XFile(file.path)],
+      subject: 'NoteAssista Statistics Report',
+      text: 'My note-taking statistics from NoteAssista',
+    );
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Statistics exported as PDF'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  }
+
+  pw.Widget _buildPdfSection(String title, List<String> items) {
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Text(
+          title,
+          style: pw.TextStyle(
+            fontSize: 16,
+            fontWeight: pw.FontWeight.bold,
+            color: PdfColors.deepPurple,
+          ),
+        ),
+        pw.SizedBox(height: 8),
+        pw.Container(
+          padding: const pw.EdgeInsets.all(12),
+          decoration: pw.BoxDecoration(
+            border: pw.Border.all(color: PdfColors.grey300),
+            borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
+          ),
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children:
+                items
+                    .map(
+                      (item) => pw.Padding(
+                        padding: const pw.EdgeInsets.only(bottom: 4),
+                        child: pw.Text(
+                          item,
+                          style: const pw.TextStyle(fontSize: 12),
+                        ),
+                      ),
+                    )
+                    .toList(),
+          ),
+        ),
+      ],
+    );
   }
 }

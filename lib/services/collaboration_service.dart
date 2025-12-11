@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import '../models/collaborator_model.dart';
+import 'collaboration_notification_service.dart';
 
 /// Enum representing the presence status of a collaborator
 enum PresenceStatus { viewing, editing, away }
@@ -153,6 +154,8 @@ class NoteChange {
 class CollaborationService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseDatabase _realtimeDb = FirebaseDatabase.instance;
+  final CollaborationNotificationService _notificationService =
+      CollaborationNotificationService();
 
   // Color palette for collaborator cursors
   static const List<Color> _cursorColors = [
@@ -366,8 +369,28 @@ class CollaborationService {
           'ownerId': userId, // Set owner if not already set
         });
 
-        // TODO: Send notifications to new collaborators
-        // This would be implemented in a separate notification service
+        // Send notifications to new collaborators
+        if (newCollaborators.isNotEmpty) {
+          // Get note title for notification
+          final noteTitle = noteData['title'] ?? 'Untitled Note';
+
+          // Get owner information for notification
+          final ownerDoc =
+              await _firestore.collection('users').doc(userId).get();
+          final ownerName =
+              ownerDoc.exists
+                  ? (ownerDoc.data()?['displayName'] ?? 'Someone')
+                  : 'Someone';
+
+          // Send notifications to new collaborators
+          await _notificationService.notifyNewCollaborators(
+            noteId: noteId,
+            noteTitle: noteTitle,
+            ownerName: ownerName,
+            newCollaboratorIds: newCollaboratorIds,
+            ownerId: userId,
+          );
+        }
       }
     } on FirebaseException catch (e) {
       throw Exception('Failed to share note: ${e.message}');

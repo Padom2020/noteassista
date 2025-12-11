@@ -119,7 +119,7 @@ class _CollaborativeTextFieldState extends State<CollaborativeTextField> {
                   borderSide: BorderSide(
                     color:
                         editingCollaborators.isNotEmpty
-                            ? Colors.blue.withOpacity(0.5)
+                            ? Colors.blue.withValues(alpha: 0.5)
                             : Colors.grey,
                   ),
                 ),
@@ -127,7 +127,7 @@ class _CollaborativeTextFieldState extends State<CollaborativeTextField> {
                   borderSide: BorderSide(
                     color:
                         editingCollaborators.isNotEmpty
-                            ? Colors.blue.withOpacity(0.3)
+                            ? Colors.blue.withValues(alpha: 0.3)
                             : Colors.grey,
                   ),
                 ),
@@ -182,7 +182,7 @@ class _EditingHighlightPainter extends CustomPainter {
       // This is a placeholder - real implementation would need proper text layout
       final paint =
           Paint()
-            ..color = collaborator.cursorColor.withOpacity(0.2)
+            ..color = collaborator.cursorColor.withValues(alpha: 0.2)
             ..style = PaintingStyle.fill;
 
       // Draw a small rectangle as a placeholder

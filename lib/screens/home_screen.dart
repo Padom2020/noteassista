@@ -2,9 +2,12 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
+import '../services/migration_service.dart';
+import '../services/onboarding_service.dart';
 import '../models/note_model.dart';
 import '../models/folder_model.dart';
 import '../widgets/clickable_note_link.dart';
+import '../widgets/feature_tooltip.dart';
 import 'add_note_screen.dart';
 import 'edit_note_screen.dart';
 import 'voice_capture_screen.dart';
@@ -12,6 +15,9 @@ import 'graph_view_screen.dart';
 import 'folder_view_screen.dart';
 import 'reminders_screen.dart';
 import 'statistics_screen.dart';
+import 'daily_note_calendar_screen.dart';
+import 'whats_new_screen.dart';
+import 'help_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -23,6 +29,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final AuthService _authService = AuthService();
   final FirestoreService _firestoreService = FirestoreService();
+  final OnboardingService _onboardingService = OnboardingService();
   final ScrollController _scrollController = ScrollController();
   bool _isFabVisible = true;
   double _lastScrollPosition = 0.0;
@@ -32,11 +39,250 @@ class _HomeScreenState extends State<HomeScreen> {
   String _selectedFolderName = 'All Notes';
   List<FolderModel> _folders = [];
 
+  // Keys for feature tooltips
+  final GlobalKey _voiceFabKey = GlobalKey();
+  final GlobalKey _graphViewKey = GlobalKey();
+  final GlobalKey _foldersKey = GlobalKey();
+
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_handleScroll);
     _loadFolders();
+    _checkAndRunMigration();
+    _checkForWhatsNew();
+    _checkForFirstLaunch();
+  }
+
+  /// Check if this is the first launch and show feature tour
+  Future<void> _checkForFirstLaunch() async {
+    final isOnboardingCompleted =
+        await _onboardingService.isOnboardingCompleted();
+
+    if (!isOnboardingCompleted && mounted) {
+      // Delay to ensure home screen is fully loaded
+      await Future.delayed(const Duration(milliseconds: 1500));
+      if (mounted) {
+        await _showFeatureTour();
+        await _onboardingService.completeOnboarding();
+      }
+    }
+  }
+
+  /// Show a feature tour dialog
+  Future<void> _showFeatureTour() async {
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder:
+          (context) => AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.celebration, color: Colors.amber),
+                SizedBox(width: 12),
+                Text('Welcome to NoteAssista!'),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Let\'s take a quick tour of the powerful features available to you:',
+                    style: TextStyle(fontSize: 16),
+                  ),
+                  const SizedBox(height: 16),
+                  _buildFeatureTourItem(
+                    Icons.mic,
+                    'Voice Capture',
+                    'Tap the red microphone button to create notes by speaking',
+                    Colors.red,
+                  ),
+                  _buildFeatureTourItem(
+                    Icons.link,
+                    'Linked Notes',
+                    'Type [[ in any note to link to other notes and build your knowledge network',
+                    Colors.purple,
+                  ),
+                  _buildFeatureTourItem(
+                    Icons.account_tree,
+                    'Graph View',
+                    'Visualize connections between your notes in an interactive graph',
+                    Colors.blue,
+                  ),
+                  _buildFeatureTourItem(
+                    Icons.folder,
+                    'Folders',
+                    'Organize notes into folders and sub-folders for better structure',
+                    Colors.teal,
+                  ),
+                  _buildFeatureTourItem(
+                    Icons.people,
+                    'Collaboration',
+                    'Share notes and edit together with your team in real-time',
+                    Colors.green,
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue[50],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.lightbulb_outline, color: Colors.blue[700]),
+                        const SizedBox(width: 8),
+                        const Expanded(
+                          child: Text(
+                            'Look for tooltips and help icons throughout the app to learn more!',
+                            style: TextStyle(fontSize: 13),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+                child: const Text('Got it!'),
+              ),
+            ],
+          ),
+    );
+  }
+
+  Widget _buildFeatureTourItem(
+    IconData icon,
+    String title,
+    String description,
+    Color color,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  description,
+                  style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Check if this is a new version and show What's New screen
+  Future<void> _checkForWhatsNew() async {
+    const currentVersion = '1.0.0'; // This should come from package_info
+    final isNewVersion = await _onboardingService.isNewVersion(currentVersion);
+
+    if (isNewVersion && mounted) {
+      // Delay to ensure home screen is fully loaded
+      await Future.delayed(const Duration(milliseconds: 1000));
+      if (mounted) {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const WhatsNewScreen(version: currentVersion),
+          ),
+        );
+      }
+    }
+  }
+
+  /// Check if migration is needed and run it
+  Future<void> _checkAndRunMigration() async {
+    final userId = _authService.currentUser?.uid;
+    if (userId == null) return;
+
+    try {
+      final migrationService = MigrationService();
+
+      // Check if migration is needed
+      final needsMigration = await migrationService.needsMigration(userId);
+
+      if (needsMigration) {
+        debugPrint('Migration needed for user: $userId');
+
+        // Run migration in the background
+        final result = await migrationService.runMigrations(userId);
+
+        if (result.success) {
+          debugPrint('Migration completed successfully');
+          debugPrint('Notes updated: ${result.notesUpdated}');
+          debugPrint('Folders created: ${result.foldersCreated}');
+          debugPrint('Templates created: ${result.templatesCreated}');
+
+          // Show success message if any changes were made
+          if (result.notesUpdated > 0 ||
+              result.foldersCreated > 0 ||
+              result.templatesCreated > 0) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'App updated! ${result.notesUpdated} notes migrated, '
+                    '${result.foldersCreated} folders created, '
+                    '${result.templatesCreated} templates added.',
+                  ),
+                  backgroundColor: Colors.green,
+                  duration: const Duration(seconds: 5),
+                ),
+              );
+            }
+          }
+        } else {
+          debugPrint('Migration completed with errors: ${result.errors}');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Some data migration issues occurred. Please contact support if you experience problems.',
+                ),
+                backgroundColor: Colors.orange,
+                duration: Duration(seconds: 5),
+              ),
+            );
+          }
+        }
+      } else {
+        debugPrint('No migration needed for user: $userId');
+      }
+    } catch (e) {
+      debugPrint('Error during migration check: $e');
+      // Don't show error to user - migration failures shouldn't block app usage
+    }
   }
 
   Future<void> _loadFolders() async {
@@ -628,28 +874,52 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.folder_outlined),
+            icon: const Icon(Icons.today),
             onPressed: () {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => const FolderViewScreen(),
+                  builder: (context) => const DailyNoteCalendarScreen(),
                 ),
               );
             },
-            tooltip: 'Folders',
+            tooltip: 'Daily Notes',
           ),
-          IconButton(
-            icon: const Icon(Icons.account_tree),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const GraphViewScreen(),
-                ),
-              );
-            },
-            tooltip: 'Graph View',
+          FeatureTooltip(
+            tooltipId: 'folders_feature',
+            message: 'Organize notes into folders and sub-folders',
+            direction: TooltipDirection.bottom,
+            child: IconButton(
+              key: _foldersKey,
+              icon: const Icon(Icons.folder_outlined),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const FolderViewScreen(),
+                  ),
+                );
+              },
+              tooltip: 'Folders',
+            ),
+          ),
+          FeatureTooltip(
+            tooltipId: 'graph_view_feature',
+            message: 'Visualize connections between your notes',
+            direction: TooltipDirection.bottom,
+            child: IconButton(
+              key: _graphViewKey,
+              icon: const Icon(Icons.account_tree),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const GraphViewScreen(),
+                  ),
+                );
+              },
+              tooltip: 'Graph View',
+            ),
           ),
           IconButton(
             icon: const Icon(Icons.notifications),
@@ -675,11 +945,59 @@ class _HomeScreenState extends State<HomeScreen> {
             },
             tooltip: 'Statistics',
           ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () async {
-              await _authService.signOut();
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: (value) {
+              if (value == 'whats_new') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder:
+                        (context) => const WhatsNewScreen(version: '1.0.0'),
+                  ),
+                );
+              } else if (value == 'help') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const HelpScreen()),
+                );
+              } else if (value == 'logout') {
+                _authService.signOut();
+              }
             },
+            itemBuilder:
+                (context) => [
+                  const PopupMenuItem(
+                    value: 'whats_new',
+                    child: Row(
+                      children: [
+                        Icon(Icons.new_releases, size: 20),
+                        SizedBox(width: 12),
+                        Text('What\'s New'),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'help',
+                    child: Row(
+                      children: [
+                        Icon(Icons.help_outline, size: 20),
+                        SizedBox(width: 12),
+                        Text('Help & Documentation'),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'logout',
+                    child: Row(
+                      children: [
+                        Icon(Icons.logout, size: 20),
+                        SizedBox(width: 12),
+                        Text('Logout'),
+                      ],
+                    ),
+                  ),
+                ],
           ),
         ],
       ),
@@ -736,19 +1054,25 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Voice capture FAB
-              FloatingActionButton(
-                heroTag: 'voice_fab',
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const VoiceCaptureScreen(),
-                    ),
-                  );
-                },
-                backgroundColor: Colors.red[400],
-                child: const Icon(Icons.mic),
+              // Voice capture FAB with tooltip
+              FeatureTooltip(
+                tooltipId: 'voice_capture_feature',
+                message: 'Tap to create notes by speaking',
+                direction: TooltipDirection.left,
+                child: FloatingActionButton(
+                  key: _voiceFabKey,
+                  heroTag: 'voice_fab',
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const VoiceCaptureScreen(),
+                      ),
+                    );
+                  },
+                  backgroundColor: Colors.red[400],
+                  child: const Icon(Icons.mic),
+                ),
               ),
               const SizedBox(height: 12),
               // Regular add note FAB

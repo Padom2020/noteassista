@@ -87,11 +87,17 @@ dependencies:
   
   # File sharing and picking
   share_plus: ^7.2.2
-  file_picker: ^6.1.1
+  file_picker: ^5.5.0
   
   # Statistics export
   screenshot: ^2.1.0
   pdf: ^3.10.7
+  
+  # Calendar for daily notes
+  table_calendar: ^3.0.9
+  
+  # Package info for version checking
+  package_info_plus: ^9.0.0
 
 dev_dependencies:
   flutter_test:

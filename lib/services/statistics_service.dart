@@ -50,7 +50,7 @@ class StatisticsService {
       // Calculate total word count
       final totalWordCount = notes.fold<int>(
         0,
-        (sum, note) => sum + note.wordCount,
+        (total, note) => total + note.wordCount,
       );
 
       // Calculate tag frequency distribution
@@ -91,7 +91,7 @@ class StatisticsService {
 
       final totalConnections = notes.fold<int>(
         0,
-        (sum, note) => sum + note.outgoingLinks.length,
+        (total, note) => total + note.outgoingLinks.length,
       );
 
       final avgConnectionsPerNote =

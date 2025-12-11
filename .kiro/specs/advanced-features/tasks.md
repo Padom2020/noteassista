@@ -353,6 +353,27 @@
   - Mock external services
   - _Requirements: 29, 30_
 
+- [x] 25.3 Implement drawing URL loading functionality
+
+
+
+
+
+  - Add loadExistingDrawing() method to DrawingScreen
+  - Implement image download from Firebase Storage with caching
+  - Add background image layer to DrawingCanvas widget
+  - Implement toggle to show/hide background image
+  - Add image scaling to handle different canvas sizes
+  - Implement error handling for invalid URLs
+  - Add loading indicator while downloading image
+  - _Requirements: 36_
+
+- [ ]* 25.4 Write property tests for drawing URL loading
+  - **Property 12: Drawing URL loading preservation**
+  - **Validates: Requirements 36.1, 36.7**
+  - **Property 13: Drawing composition integrity** 
+  - **Validates: Requirements 36.4, 36.6**
+
 
 ## Phase 7: Folders and Organization
 
@@ -569,7 +590,15 @@ notification services
   - Display longest note by word count
   - _Requirements: 31_
 
-- [-] 39. Implement statistics export
+- [x] 39. Implement statistics export
+
+
+
+
+
+
+
+
 
 
   - Add export button to statistics screen
@@ -582,7 +611,12 @@ notification services
 
 ## Phase 11: Daily Notes and Journal Mode
 
-- [ ] 40. Implement daily note functionality
+- [x] 40. Implement daily note functionality
+
+
+
+
+
 
   - Add daily note methods to FirestoreService
   - Implement getOrCreateDailyNote() method
@@ -591,7 +625,15 @@ notification services
   - Auto-tag daily notes with "daily" tag
   - _Requirements: 33_
 
-- [ ] 41. Build daily note UI
+- [x] 41. Build daily note UI
+
+
+
+
+
+
+
+
 
   - Add "Today" button to home screen
   - Create DailyNoteCalendarScreen in lib/screens/daily_note_calendar_screen.dart
@@ -601,7 +643,10 @@ notification services
   - Display streak counter for consecutive daily notes
   - _Requirements: 33_
 
-- [ ] 42. Implement daily note templates
+- [x] 42. Implement daily note templates
+
+
+
 
   - Create default daily note template with sections
   - Allow users to customize daily note template
@@ -612,7 +657,13 @@ notification services
 
 ## Phase 12: Integration and Polish
 
-- [ ] 43. Implement data migration
+- [x] 43. Implement data migration
+
+
+
+
+
+
 
   - Create migration script to add new fields to existing notes
   - Set default values for new fields (empty arrays, null, 0)
@@ -623,7 +674,12 @@ notification services
   - _Requirements: All_
 
 
-- [ ] 44. Update Firestore security rules
+- [x] 44. Update Firestore security rules
+
+
+
+
+
   - Deploy new security rules for folders subcollection
   - Deploy new security rules for templates subcollection
   - Add collaboration access rules for shared notes
@@ -632,7 +688,7 @@ notification services
   - _Requirements: 26, 32, 35_
 
 
-- [ ] 45. Implement feature discovery and onboarding
+- [x] 45. Implement feature discovery and onboarding
   - Create feature tour for new advanced features
   - Add tooltips for first-time use
   - Create "What's New" screen for app updates
@@ -641,7 +697,19 @@ notification services
   - _Requirements: All_
 
 
-- [ ] 46. Performance optimization
+- [x] 46. Performance optimization
+
+
+
+
+
+
+
+
+
+
+
+
   - Implement lazy loading for graph view (render only visible nodes)
   - Add pagination for large note lists
   - Optimize search indexing with local SQLite database
@@ -651,7 +719,10 @@ notification services
   - _Requirements: All_
 
 
-- [ ] 47. Error handling and edge cases
+- [x] 47. Error handling and edge cases
+
+
+
   - Add error handling for all service methods
   - Implement retry logic for network failures
   - Add offline queue for operations

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import '../models/note_model.dart';
 import '../models/folder_model.dart';
 import '../models/template_model.dart';
+import '../models/daily_note_preferences.dart';
 
 class FirestoreService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -1397,6 +1398,378 @@ I'm grateful for:
     }
   }
 
+  // ==================== Daily Note Methods ====================
+
+  // Get or create daily note for today
+  Future<NoteModel> getOrCreateDailyNote(String userId) async {
+    final today = DateTime.now();
+    return getDailyNoteForDate(userId, today);
+  }
+
+  // Get or create daily note for a specific date
+  Future<NoteModel> getDailyNoteForDate(String userId, DateTime date) async {
+    try {
+      // Format date as YYYY-MM-DD
+      final dateString =
+          '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+      final dailyNoteTitle = 'Daily Note - $dateString';
+
+      // Query for existing daily note with this title
+      final querySnapshot =
+          await _firestore
+              .collection('users')
+              .doc(userId)
+              .collection('notes')
+              .where('title', isEqualTo: dailyNoteTitle)
+              .limit(1)
+              .get();
+
+      // If daily note exists, return it
+      if (querySnapshot.docs.isNotEmpty) {
+        return NoteModel.fromFirestore(querySnapshot.docs.first);
+      }
+
+      // Get user preferences to check for custom template
+      final preferences = await getDailyNotePreferences(userId);
+      String content = '';
+
+      if (preferences.useCustomTemplate &&
+          preferences.customDailyTemplate != null) {
+        // Use custom template
+        content = _replaceDateVariables(
+          preferences.customDailyTemplate!,
+          date,
+          DailyNoteType.daily,
+        );
+      } else {
+        // Use default template
+        content = _replaceDateVariables(
+          DailyNotePreferences.getDefaultDailyTemplate(),
+          date,
+          DailyNoteType.daily,
+        );
+      }
+
+      // Create new daily note if it doesn't exist
+      final newDailyNote = NoteModel(
+        id: '', // Will be set by Firestore
+        title: dailyNoteTitle,
+        description: content,
+        timestamp: DateTime.now().toString(),
+        categoryImageIndex: 0,
+        isDone: false,
+        isPinned: false,
+        tags: ['daily'], // Auto-tag with "daily"
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        ownerId: userId,
+      );
+
+      // Add the note to Firestore
+      final docRef = await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('notes')
+          .add(newDailyNote.toMap());
+
+      // Fetch and return the created note with its ID
+      final createdDoc = await docRef.get();
+      return NoteModel.fromFirestore(createdDoc);
+    } on FirebaseException catch (e) {
+      debugPrint(
+        'Firestore error getting/creating daily note: ${e.code} - ${e.message}',
+      );
+      throw Exception(_getErrorMessage(e));
+    } catch (e) {
+      debugPrint('Unexpected error getting/creating daily note: $e');
+      throw Exception(_getErrorMessage(e));
+    }
+  }
+
+  // Get or create weekly note for a specific date
+  Future<NoteModel> getWeeklyNoteForDate(String userId, DateTime date) async {
+    try {
+      // Calculate week number and year
+      final weekNumber = _getWeekNumber(date);
+      final year = date.year;
+      final weeklyNoteTitle = 'Weekly Review - Week $weekNumber, $year';
+
+      // Query for existing weekly note with this title
+      final querySnapshot =
+          await _firestore
+              .collection('users')
+              .doc(userId)
+              .collection('notes')
+              .where('title', isEqualTo: weeklyNoteTitle)
+              .limit(1)
+              .get();
+
+      // If weekly note exists, return it
+      if (querySnapshot.docs.isNotEmpty) {
+        return NoteModel.fromFirestore(querySnapshot.docs.first);
+      }
+
+      // Get user preferences to check for custom template
+      final preferences = await getDailyNotePreferences(userId);
+      String content = '';
+
+      if (preferences.useCustomTemplate &&
+          preferences.customWeeklyTemplate != null) {
+        // Use custom template
+        content = _replaceDateVariables(
+          preferences.customWeeklyTemplate!,
+          date,
+          DailyNoteType.weekly,
+        );
+      } else {
+        // Use default template
+        content = _replaceDateVariables(
+          DailyNotePreferences.getDefaultWeeklyTemplate(),
+          date,
+          DailyNoteType.weekly,
+        );
+      }
+
+      // Create new weekly note
+      final newWeeklyNote = NoteModel(
+        id: '',
+        title: weeklyNoteTitle,
+        description: content,
+        timestamp: DateTime.now().toString(),
+        categoryImageIndex: 0,
+        isDone: false,
+        isPinned: false,
+        tags: ['weekly', 'review'],
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        ownerId: userId,
+      );
+
+      // Add the note to Firestore
+      final docRef = await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('notes')
+          .add(newWeeklyNote.toMap());
+
+      // Fetch and return the created note with its ID
+      final createdDoc = await docRef.get();
+      return NoteModel.fromFirestore(createdDoc);
+    } on FirebaseException catch (e) {
+      debugPrint(
+        'Firestore error getting/creating weekly note: ${e.code} - ${e.message}',
+      );
+      throw Exception(_getErrorMessage(e));
+    } catch (e) {
+      debugPrint('Unexpected error getting/creating weekly note: $e');
+      throw Exception(_getErrorMessage(e));
+    }
+  }
+
+  // Get or create monthly note for a specific date
+  Future<NoteModel> getMonthlyNoteForDate(String userId, DateTime date) async {
+    try {
+      final monthNames = [
+        'January',
+        'February',
+        'March',
+        'April',
+        'May',
+        'June',
+        'July',
+        'August',
+        'September',
+        'October',
+        'November',
+        'December',
+      ];
+      final monthName = monthNames[date.month - 1];
+      final year = date.year;
+      final monthlyNoteTitle = 'Monthly Review - $monthName $year';
+
+      // Query for existing monthly note with this title
+      final querySnapshot =
+          await _firestore
+              .collection('users')
+              .doc(userId)
+              .collection('notes')
+              .where('title', isEqualTo: monthlyNoteTitle)
+              .limit(1)
+              .get();
+
+      // If monthly note exists, return it
+      if (querySnapshot.docs.isNotEmpty) {
+        return NoteModel.fromFirestore(querySnapshot.docs.first);
+      }
+
+      // Get user preferences to check for custom template
+      final preferences = await getDailyNotePreferences(userId);
+      String content = '';
+
+      if (preferences.useCustomTemplate &&
+          preferences.customMonthlyTemplate != null) {
+        // Use custom template
+        content = _replaceDateVariables(
+          preferences.customMonthlyTemplate!,
+          date,
+          DailyNoteType.monthly,
+        );
+      } else {
+        // Use default template
+        content = _replaceDateVariables(
+          DailyNotePreferences.getDefaultMonthlyTemplate(),
+          date,
+          DailyNoteType.monthly,
+        );
+      }
+
+      // Create new monthly note
+      final newMonthlyNote = NoteModel(
+        id: '',
+        title: monthlyNoteTitle,
+        description: content,
+        timestamp: DateTime.now().toString(),
+        categoryImageIndex: 0,
+        isDone: false,
+        isPinned: false,
+        tags: ['monthly', 'review'],
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        ownerId: userId,
+      );
+
+      // Add the note to Firestore
+      final docRef = await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('notes')
+          .add(newMonthlyNote.toMap());
+
+      // Fetch and return the created note with its ID
+      final createdDoc = await docRef.get();
+      return NoteModel.fromFirestore(createdDoc);
+    } on FirebaseException catch (e) {
+      debugPrint(
+        'Firestore error getting/creating monthly note: ${e.code} - ${e.message}',
+      );
+      throw Exception(_getErrorMessage(e));
+    } catch (e) {
+      debugPrint('Unexpected error getting/creating monthly note: $e');
+      throw Exception(_getErrorMessage(e));
+    }
+  }
+
+  // Helper method to replace date variables in templates
+  String _replaceDateVariables(
+    String template,
+    DateTime date,
+    DailyNoteType type,
+  ) {
+    final monthNames = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+
+    String result = template;
+
+    // Common variables
+    final dateString =
+        '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    result = result.replaceAll('{{date}}', dateString);
+    result = result.replaceAll('{{year}}', date.year.toString());
+    result = result.replaceAll('{{month}}', monthNames[date.month - 1]);
+
+    // Type-specific variables
+    if (type == DailyNoteType.weekly) {
+      final weekNumber = _getWeekNumber(date);
+      result = result.replaceAll('{{week_number}}', weekNumber.toString());
+
+      // Calculate start and end of week (Monday to Sunday)
+      final startOfWeek = date.subtract(Duration(days: date.weekday - 1));
+      final endOfWeek = startOfWeek.add(const Duration(days: 6));
+
+      final startDateString =
+          '${startOfWeek.year}-${startOfWeek.month.toString().padLeft(2, '0')}-${startOfWeek.day.toString().padLeft(2, '0')}';
+      final endDateString =
+          '${endOfWeek.year}-${endOfWeek.month.toString().padLeft(2, '0')}-${endOfWeek.day.toString().padLeft(2, '0')}';
+
+      result = result.replaceAll('{{start_date}}', startDateString);
+      result = result.replaceAll('{{end_date}}', endDateString);
+    }
+
+    return result;
+  }
+
+  // Helper method to calculate week number
+  int _getWeekNumber(DateTime date) {
+    final firstDayOfYear = DateTime(date.year, 1, 1);
+    final daysSinceFirstDay = date.difference(firstDayOfYear).inDays;
+    return ((daysSinceFirstDay + firstDayOfYear.weekday) / 7).ceil();
+  }
+
+  // ==================== Daily Note Preferences Methods ====================
+
+  // Get daily note preferences for a user
+  Future<DailyNotePreferences> getDailyNotePreferences(String userId) async {
+    try {
+      final doc =
+          await _firestore
+              .collection('users')
+              .doc(userId)
+              .collection('preferences')
+              .doc('dailyNotes')
+              .get();
+
+      if (doc.exists) {
+        return DailyNotePreferences.fromFirestore(doc);
+      }
+
+      // Return default preferences if none exist
+      return DailyNotePreferences();
+    } on FirebaseException catch (e) {
+      debugPrint(
+        'Firestore error getting daily note preferences: ${e.code} - ${e.message}',
+      );
+      throw Exception(_getErrorMessage(e));
+    } catch (e) {
+      debugPrint('Unexpected error getting daily note preferences: $e');
+      throw Exception(_getErrorMessage(e));
+    }
+  }
+
+  // Save daily note preferences for a user
+  Future<void> saveDailyNotePreferences(
+    String userId,
+    DailyNotePreferences preferences,
+  ) async {
+    try {
+      await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('preferences')
+          .doc('dailyNotes')
+          .set(preferences.toMap(), SetOptions(merge: true));
+    } on FirebaseException catch (e) {
+      debugPrint(
+        'Firestore error saving daily note preferences: ${e.code} - ${e.message}',
+      );
+      throw Exception(_getErrorMessage(e));
+    } catch (e) {
+      debugPrint('Unexpected error saving daily note preferences: $e');
+      throw Exception(_getErrorMessage(e));
+    }
+  }
+
   // ==================== Template Sharing Methods ====================
 
   // Export template to JSON format
@@ -1455,9 +1828,8 @@ I'm grateful for:
             throw Exception('Invalid variable format');
           }
 
-          final variableMap = variable as Map<String, dynamic>;
-          if (!variableMap.containsKey('name') ||
-              !variableMap.containsKey('placeholder')) {
+          if (!variable.containsKey('name') ||
+              !variable.containsKey('placeholder')) {
             throw Exception(
               'Invalid variable format: missing name or placeholder',
             );

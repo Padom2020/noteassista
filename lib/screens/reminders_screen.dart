@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../models/note_model.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
-import '../services/reminder_service.dart';
 import '../screens/edit_note_screen.dart';
 
 class RemindersScreen extends StatefulWidget {
@@ -15,7 +14,6 @@ class RemindersScreen extends StatefulWidget {
 class _RemindersScreenState extends State<RemindersScreen> {
   final AuthService _authService = AuthService();
   final FirestoreService _firestoreService = FirestoreService();
-  final ReminderService _reminderService = ReminderService();
 
   List<NoteWithReminder> _notesWithReminders = [];
   bool _isLoading = true;

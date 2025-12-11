@@ -8,6 +8,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:path_provider/path_provider.dart';
 import '../widgets/drawing_canvas.dart';
 import '../services/ocr_service.dart';
+import '../services/drawing_service.dart';
 
 class DrawingScreen extends StatefulWidget {
   final String userId;
@@ -28,6 +29,7 @@ class DrawingScreen extends StatefulWidget {
 class _DrawingScreenState extends State<DrawingScreen> {
   final GlobalKey _canvasKey = GlobalKey();
   final OCRService _ocrService = OCRService();
+  final DrawingService _drawingService = DrawingService();
   List<DrawingPath> _paths = [];
   List<DrawingPath> _undoStack = [];
 
@@ -38,6 +40,10 @@ class _DrawingScreenState extends State<DrawingScreen> {
   bool _showLines = false;
   bool _isSaving = false;
   bool _isRecognizing = false;
+  bool _isLoadingDrawing = false;
+  bool _showBackgroundImage = true;
+  ui.Image? _backgroundImage;
+  String? _loadError;
 
   @override
   void initState() {
@@ -48,9 +54,40 @@ class _DrawingScreenState extends State<DrawingScreen> {
   }
 
   Future<void> _loadExistingDrawing() async {
-    // TODO: Implement loading existing drawing from URL
-    // This would require downloading the image and converting it back to paths
-    // For now, we'll just show the image as a background
+    if (widget.existingDrawingUrl == null) return;
+
+    setState(() {
+      _isLoadingDrawing = true;
+      _loadError = null;
+    });
+
+    try {
+      final result = await _drawingService.loadDrawingFromUrl(
+        widget.existingDrawingUrl!,
+      );
+
+      if (mounted) {
+        setState(() {
+          _isLoadingDrawing = false;
+          if (result.success && result.image != null) {
+            _backgroundImage = result.image;
+            _showBackgroundImage = true;
+            _loadError = null;
+          } else {
+            _loadError = result.errorMessage ?? 'Failed to load drawing';
+            _backgroundImage = null;
+          }
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingDrawing = false;
+          _loadError = 'Error loading drawing: $e';
+          _backgroundImage = null;
+        });
+      }
+    }
   }
 
   void _onPathsChanged(List<DrawingPath> newPaths) {
@@ -140,12 +177,31 @@ class _DrawingScreenState extends State<DrawingScreen> {
         _isSaving = true;
       });
 
-      // Capture the drawing as an image
-      final RenderRepaintBoundary boundary =
-          _canvasKey.currentContext!.findRenderObject()
-              as RenderRepaintBoundary;
-      final ui.Image image = await boundary.toImage(pixelRatio: 3.0);
-      final ByteData? byteData = await image.toByteData(
+      ui.Image finalImage;
+
+      // If we have a background image and drawing paths, composite them
+      if (_backgroundImage != null && _paths.isNotEmpty) {
+        // Get canvas size from the render boundary
+        final RenderRepaintBoundary boundary =
+            _canvasKey.currentContext!.findRenderObject()
+                as RenderRepaintBoundary;
+        final size = boundary.size;
+
+        // Composite background image with drawing paths
+        finalImage = await _drawingService.compositeDrawingLayers(
+          _showBackgroundImage ? _backgroundImage : null,
+          _paths,
+          size,
+        );
+      } else {
+        // Capture the drawing as usual
+        final RenderRepaintBoundary boundary =
+            _canvasKey.currentContext!.findRenderObject()
+                as RenderRepaintBoundary;
+        finalImage = await boundary.toImage(pixelRatio: 3.0);
+      }
+
+      final ByteData? byteData = await finalImage.toByteData(
         format: ui.ImageByteFormat.png,
       );
       final Uint8List pngBytes = byteData!.buffer.asUint8List();
@@ -345,11 +401,12 @@ class _DrawingScreenState extends State<DrawingScreen> {
               ),
               ElevatedButton(
                 onPressed: () async {
-                  Navigator.pop(context); // Close dialog
+                  final navigator = Navigator.of(context);
+                  navigator.pop(); // Close dialog
                   // Save drawing and also return text
                   final url = await _captureAndSaveDrawing();
                   if (url != null && mounted) {
-                    Navigator.pop(context, {
+                    navigator.pop({
                       'type': 'both',
                       'drawingUrl': url,
                       'text': result.extractedText,
@@ -375,6 +432,16 @@ class _DrawingScreenState extends State<DrawingScreen> {
       appBar: AppBar(
         title: const Text('Drawing'),
         actions: [
+          // Show loading indicator for drawing loading
+          if (_isLoadingDrawing)
+            const Padding(
+              padding: EdgeInsets.all(16.0),
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
           IconButton(
             icon: const Icon(Icons.undo),
             onPressed: _paths.isEmpty ? null : _undo,
@@ -515,45 +582,63 @@ class _DrawingScreenState extends State<DrawingScreen> {
               color: Colors.grey[50],
               border: Border(bottom: BorderSide(color: Colors.grey[300]!)),
             ),
-            child: Row(
-              children: [
-                const Text('Background: '),
-                const SizedBox(width: 8),
-                ChoiceChip(
-                  label: const Text('None'),
-                  selected: !_showGrid && !_showLines,
-                  onSelected: (selected) {
-                    if (selected) {
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  const Text('Background: '),
+                  const SizedBox(width: 8),
+                  ChoiceChip(
+                    label: const Text('None'),
+                    selected: !_showGrid && !_showLines,
+                    onSelected: (selected) {
+                      if (selected) {
+                        setState(() {
+                          _showGrid = false;
+                          _showLines = false;
+                        });
+                      }
+                    },
+                  ),
+                  const SizedBox(width: 8),
+                  ChoiceChip(
+                    label: const Text('Grid'),
+                    selected: _showGrid,
+                    onSelected: (selected) {
                       setState(() {
-                        _showGrid = false;
-                        _showLines = false;
+                        _showGrid = selected;
+                        if (selected) _showLines = false;
                       });
-                    }
-                  },
-                ),
-                const SizedBox(width: 8),
-                ChoiceChip(
-                  label: const Text('Grid'),
-                  selected: _showGrid,
-                  onSelected: (selected) {
-                    setState(() {
-                      _showGrid = selected;
-                      if (selected) _showLines = false;
-                    });
-                  },
-                ),
-                const SizedBox(width: 8),
-                ChoiceChip(
-                  label: const Text('Lines'),
-                  selected: _showLines,
-                  onSelected: (selected) {
-                    setState(() {
-                      _showLines = selected;
-                      if (selected) _showGrid = false;
-                    });
-                  },
-                ),
-              ],
+                    },
+                  ),
+                  const SizedBox(width: 8),
+                  ChoiceChip(
+                    label: const Text('Lines'),
+                    selected: _showLines,
+                    onSelected: (selected) {
+                      setState(() {
+                        _showLines = selected;
+                        if (selected) _showGrid = false;
+                      });
+                    },
+                  ),
+                  // Add background image toggle if we have a background image
+                  if (_backgroundImage != null) ...[
+                    const SizedBox(width: 16),
+                    const Text('Image: '),
+                    const SizedBox(width: 8),
+                    ChoiceChip(
+                      label: Text(_showBackgroundImage ? 'Show' : 'Hide'),
+                      selected: _showBackgroundImage,
+                      onSelected: (selected) {
+                        setState(() {
+                          _showBackgroundImage = selected;
+                        });
+                      },
+                    ),
+                  ],
+                ],
+              ),
             ),
           ),
 
@@ -561,17 +646,58 @@ class _DrawingScreenState extends State<DrawingScreen> {
           Expanded(
             child: Container(
               color: Colors.white,
-              child: RepaintBoundary(
-                key: _canvasKey,
-                child: DrawingCanvas(
-                  paths: _paths,
-                  currentTool: _currentTool,
-                  currentColor: _currentColor,
-                  strokeWidth: _strokeWidth,
-                  showGrid: _showGrid,
-                  showLines: _showLines,
-                  onPathsChanged: _onPathsChanged,
-                ),
+              child: Stack(
+                children: [
+                  RepaintBoundary(
+                    key: _canvasKey,
+                    child: DrawingCanvas(
+                      paths: _paths,
+                      currentTool: _currentTool,
+                      currentColor: _currentColor,
+                      strokeWidth: _strokeWidth,
+                      showGrid: _showGrid,
+                      showLines: _showLines,
+                      onPathsChanged: _onPathsChanged,
+                      backgroundImage: _backgroundImage,
+                      showBackgroundImage: _showBackgroundImage,
+                    ),
+                  ),
+                  // Show error message if loading failed
+                  if (_loadError != null)
+                    Positioned(
+                      top: 16,
+                      left: 16,
+                      right: 16,
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.red[100],
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.red[300]!),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.error_outline, color: Colors.red[700]),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _loadError!,
+                                style: TextStyle(color: Colors.red[700]),
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.close),
+                              onPressed: () {
+                                setState(() {
+                                  _loadError = null;
+                                });
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
           ),

@@ -23,7 +23,7 @@ import '../screens/drawing_screen.dart';
 import '../widgets/save_as_template_dialog.dart';
 import '../widgets/template_variable_input_dialog.dart';
 import '../widgets/reminder_dialog.dart';
-import '../services/reminder_service.dart';
+import '../widgets/feature_tooltip.dart';
 
 class AddNoteScreen extends StatefulWidget {
   const AddNoteScreen({super.key});
@@ -44,7 +44,6 @@ class _AddNoteScreenState extends State<AddNoteScreen> {
   final VoiceService _voiceService = VoiceService();
   final LinkManagementService _linkService = LinkManagementService();
   final OCRService _ocrService = OCRService();
-  final ReminderService _reminderService = ReminderService();
 
   int _selectedCategoryIndex = 0;
   bool _isLoading = false;
@@ -68,6 +67,10 @@ class _AddNoteScreenState extends State<AddNoteScreen> {
   final FocusNode _titleFocusNode = FocusNode();
   final FocusNode _descriptionFocusNode = FocusNode();
   final FocusNode _tagsFocusNode = FocusNode();
+
+  // Keys for feature tooltips
+  final GlobalKey _ocrButtonKey = GlobalKey();
+  final GlobalKey _templateButtonKey = GlobalKey();
 
   @override
   void initState() {
@@ -875,11 +878,12 @@ class _AddNoteScreenState extends State<AddNoteScreen> {
             noteTitle: title.isEmpty ? 'Untitled Template' : title,
             noteContent: description,
             onSave: (template) async {
+              final scaffoldMessenger = ScaffoldMessenger.of(context);
               try {
                 await _firestoreService.createTemplate(userId, template);
 
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  scaffoldMessenger.showSnackBar(
                     SnackBar(
                       content: Text(
                         'Template "${template.name}" saved successfully',
@@ -890,7 +894,7 @@ class _AddNoteScreenState extends State<AddNoteScreen> {
                 }
               } catch (e) {
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  scaffoldMessenger.showSnackBar(
                     SnackBar(
                       content: Text('Error saving template: $e'),
                       backgroundColor: Colors.red,
@@ -954,10 +958,16 @@ class _AddNoteScreenState extends State<AddNoteScreen> {
         title: const Text('Add Note'),
         actions: [
           // Create from template button
-          IconButton(
-            icon: const Icon(Icons.description_outlined),
-            onPressed: _openTemplateLibrary,
-            tooltip: 'Create from template',
+          FeatureTooltip(
+            tooltipId: 'template_library_feature',
+            message: 'Use pre-built templates for common note types',
+            direction: TooltipDirection.bottom,
+            child: IconButton(
+              key: _templateButtonKey,
+              icon: const Icon(Icons.description_outlined),
+              onPressed: _openTemplateLibrary,
+              tooltip: 'Create from template',
+            ),
           ),
           // Save as template button
           IconButton(
@@ -966,10 +976,16 @@ class _AddNoteScreenState extends State<AddNoteScreen> {
             tooltip: 'Save as template',
           ),
           // Camera button for OCR
-          IconButton(
-            icon: const Icon(Icons.camera_alt),
-            onPressed: _captureImagesForOCR,
-            tooltip: 'Capture image for text extraction',
+          FeatureTooltip(
+            tooltipId: 'ocr_capture_feature',
+            message: 'Capture photos to extract text automatically',
+            direction: TooltipDirection.bottom,
+            child: IconButton(
+              key: _ocrButtonKey,
+              icon: const Icon(Icons.camera_alt),
+              onPressed: _captureImagesForOCR,
+              tooltip: 'Capture image for text extraction',
+            ),
           ),
           // Drawing button
           IconButton(
@@ -1071,22 +1087,44 @@ class _AddNoteScreenState extends State<AddNoteScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // Description field
-                  TextFormField(
-                    controller: _descriptionController,
-                    focusNode: _descriptionFocusNode,
-                    maxLines: 5,
-                    decoration: const InputDecoration(
-                      labelText: 'Description',
-                      alignLabelWithHint: true,
-                      hintText: 'Type [[ to link to another note',
-                    ),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Please enter a description';
-                      }
-                      return null;
-                    },
+                  // Description field with link help
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Text(
+                            'Description',
+                            style: TextStyle(fontSize: 12, color: Colors.grey),
+                          ),
+                          const SizedBox(width: 4),
+                          Tooltip(
+                            message:
+                                'Tip: Type [[ to create links to other notes. This helps build your knowledge network!',
+                            child: Icon(
+                              Icons.help_outline,
+                              size: 16,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      TextFormField(
+                        controller: _descriptionController,
+                        focusNode: _descriptionFocusNode,
+                        maxLines: 5,
+                        decoration: const InputDecoration(
+                          hintText: 'Type [[ to link to another note',
+                        ),
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Please enter a description';
+                          }
+                          return null;
+                        },
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 16),
 

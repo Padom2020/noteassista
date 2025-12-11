@@ -25,7 +25,7 @@ import '../screens/ocr_processing_screen.dart';
 import '../screens/drawing_screen.dart';
 import '../widgets/save_as_template_dialog.dart';
 import '../widgets/reminder_dialog.dart';
-import '../services/reminder_service.dart';
+import '../widgets/feature_tooltip.dart';
 
 class EditNoteScreen extends StatefulWidget {
   final NoteModel note;
@@ -46,7 +46,6 @@ class _EditNoteScreenState extends State<EditNoteScreen> {
   final LinkManagementService _linkService = LinkManagementService();
   final CollaborationService _collaborationService = CollaborationService();
   final OCRService _ocrService = OCRService();
-  final ReminderService _reminderService = ReminderService();
 
   late int _selectedCategoryIndex;
   bool _isLoading = false;
@@ -59,6 +58,9 @@ class _EditNoteScreenState extends State<EditNoteScreen> {
 
   final FocusNode _titleFocusNode = FocusNode();
   final FocusNode _descriptionFocusNode = FocusNode();
+
+  // Keys for feature tooltips
+  final GlobalKey _shareButtonKey = GlobalKey();
 
   bool _canEdit = true;
   bool _isCheckingPermissions = true;
@@ -721,11 +723,12 @@ class _EditNoteScreenState extends State<EditNoteScreen> {
             noteTitle: title.isEmpty ? 'Untitled Template' : title,
             noteContent: description,
             onSave: (template) async {
+              final scaffoldMessenger = ScaffoldMessenger.of(context);
               try {
                 await _firestoreService.createTemplate(userId, template);
 
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  scaffoldMessenger.showSnackBar(
                     SnackBar(
                       content: Text(
                         'Template "${template.name}" saved successfully',
@@ -736,7 +739,7 @@ class _EditNoteScreenState extends State<EditNoteScreen> {
                 }
               } catch (e) {
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  scaffoldMessenger.showSnackBar(
                     SnackBar(
                       content: Text('Error saving template: $e'),
                       backgroundColor: Colors.red,
@@ -980,22 +983,28 @@ class _EditNoteScreenState extends State<EditNoteScreen> {
             ),
           // Share button
           if (userId != null)
-            IconButton(
-              icon: Icon(
-                widget.note.isShared ? Icons.people : Icons.person_add,
+            FeatureTooltip(
+              tooltipId: 'collaboration_share_feature',
+              message: 'Share notes and edit together in real-time',
+              direction: TooltipDirection.bottom,
+              child: IconButton(
+                key: _shareButtonKey,
+                icon: Icon(
+                  widget.note.isShared ? Icons.people : Icons.person_add,
+                ),
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder:
+                        (context) => ShareNoteDialog(
+                          userId: userId,
+                          noteId: widget.note.id,
+                          collaborationService: _collaborationService,
+                        ),
+                  );
+                },
+                tooltip: 'Share note',
               ),
-              onPressed: () {
-                showDialog(
-                  context: context,
-                  builder:
-                      (context) => ShareNoteDialog(
-                        userId: userId,
-                        noteId: widget.note.id,
-                        collaborationService: _collaborationService,
-                      ),
-                );
-              },
-              tooltip: 'Share note',
             ),
           // Save as template button
           if (_canEdit && userId != null)
@@ -1120,27 +1129,55 @@ class _EditNoteScreenState extends State<EditNoteScreen> {
                       ),
                     ),
 
-                  // Description field
-                  TextFormField(
-                    controller: _descriptionController,
-                    focusNode: _descriptionFocusNode,
-                    enabled: _canEdit,
-                    maxLines: 5,
-                    decoration: InputDecoration(
-                      labelText: 'Description',
-                      alignLabelWithHint: true,
-                      hintText:
-                          _canEdit
-                              ? 'Type [[ to link to another note'
-                              : 'Read-only mode',
-                      suffixIcon: !_canEdit ? const Icon(Icons.lock) : null,
-                    ),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Please enter a description';
-                      }
-                      return null;
-                    },
+                  // Description field with link help
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (_canEdit)
+                        Row(
+                          children: [
+                            const Text(
+                              'Description',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Tooltip(
+                              message:
+                                  'Tip: Type [[ to create links to other notes. This helps build your knowledge network!',
+                              child: Icon(
+                                Icons.help_outline,
+                                size: 16,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                      if (_canEdit) const SizedBox(height: 4),
+                      TextFormField(
+                        controller: _descriptionController,
+                        focusNode: _descriptionFocusNode,
+                        enabled: _canEdit,
+                        maxLines: 5,
+                        decoration: InputDecoration(
+                          labelText: _canEdit ? null : 'Description',
+                          alignLabelWithHint: true,
+                          hintText:
+                              _canEdit
+                                  ? 'Type [[ to link to another note'
+                                  : 'Read-only mode',
+                          suffixIcon: !_canEdit ? const Icon(Icons.lock) : null,
+                        ),
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Please enter a description';
+                          }
+                          return null;
+                        },
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 24),
 
@@ -1414,6 +1451,9 @@ class _EditNoteScreenState extends State<EditNoteScreen> {
                           InkWell(
                             onTap: () async {
                               final url = widget.note.sourceUrl!;
+                              final scaffoldMessenger = ScaffoldMessenger.of(
+                                context,
+                              );
                               try {
                                 final uri = Uri.parse(url);
                                 if (await canLaunchUrl(uri)) {
@@ -1423,7 +1463,7 @@ class _EditNoteScreenState extends State<EditNoteScreen> {
                                   );
                                 } else {
                                   if (mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
+                                    scaffoldMessenger.showSnackBar(
                                       const SnackBar(
                                         content: Text('Could not open URL'),
                                       ),
@@ -1432,7 +1472,7 @@ class _EditNoteScreenState extends State<EditNoteScreen> {
                                 }
                               } catch (e) {
                                 if (mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
+                                  scaffoldMessenger.showSnackBar(
                                     SnackBar(content: Text('Invalid URL: $e')),
                                   );
                                 }

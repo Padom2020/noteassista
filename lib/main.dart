@@ -6,10 +6,13 @@ import 'firebase_options.dart';
 import 'screens/splash_screen.dart';
 import 'screens/web_clipper_screen.dart';
 import 'screens/edit_note_screen.dart';
+import 'screens/whats_new_screen.dart';
 import 'services/reminder_service.dart';
 import 'services/firestore_service.dart';
 import 'services/auth_service.dart';
+import 'services/onboarding_service.dart';
 import 'models/note_model.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -34,12 +37,37 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> {
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   StreamSubscription? _intentDataStreamSubscription;
+  final OnboardingService _onboardingService = OnboardingService();
 
   @override
   void initState() {
     super.initState();
     _initSharingIntent();
     _initNotificationHandling();
+    _checkForNewVersion();
+  }
+
+  /// Check if this is a new version and show What's New screen
+  Future<void> _checkForNewVersion() async {
+    try {
+      final packageInfo = await PackageInfo.fromPlatform();
+      final currentVersion = packageInfo.version;
+      final isNew = await _onboardingService.isNewVersion(currentVersion);
+
+      if (isNew) {
+        // Wait for the app to fully load before showing What's New
+        await Future.delayed(const Duration(seconds: 2));
+        if (mounted) {
+          _navigatorKey.currentState?.push(
+            MaterialPageRoute(
+              builder: (context) => WhatsNewScreen(version: currentVersion),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('Error checking app version: $e');
+    }
   }
 
   /// Initialize notification tap handling
@@ -52,17 +80,26 @@ class _MyAppState extends State<MyApp> {
   /// Handle notification actions (tap, snooze, mark done)
   Future<void> _handleNotificationAction(String noteId, String? action) async {
     if (action == 'snooze') {
+      // Capture context before async gap
+      final context = _navigatorKey.currentContext;
+      final scaffoldMessenger =
+          context != null ? ScaffoldMessenger.of(context) : null;
+
       // Snooze the reminder for 10 minutes
       await widget.reminderService.snoozeReminder(noteId, noteId);
 
       // Show snackbar
-      final context = _navigatorKey.currentContext;
-      if (context != null && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+      if (scaffoldMessenger != null && mounted) {
+        scaffoldMessenger.showSnackBar(
           const SnackBar(content: Text('Reminder snoozed for 10 minutes')),
         );
       }
     } else if (action == 'mark_done') {
+      // Capture context before async operations
+      final context = _navigatorKey.currentContext;
+      final scaffoldMessenger =
+          context != null ? ScaffoldMessenger.of(context) : null;
+
       // Mark the note as done
       try {
         final authService = AuthService();
@@ -103,17 +140,15 @@ class _MyAppState extends State<MyApp> {
         }
 
         // Show snackbar
-        final context = _navigatorKey.currentContext;
-        if (context != null && mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Note marked as done')));
+        if (scaffoldMessenger != null && mounted) {
+          scaffoldMessenger.showSnackBar(
+            const SnackBar(content: Text('Note marked as done')),
+          );
         }
       } catch (e) {
         // Show error snackbar
-        final context = _navigatorKey.currentContext;
-        if (context != null && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
+        if (scaffoldMessenger != null && mounted) {
+          scaffoldMessenger.showSnackBar(
             SnackBar(content: Text('Error marking note as done: $e')),
           );
         }
@@ -126,6 +161,11 @@ class _MyAppState extends State<MyApp> {
 
   /// Navigate to the note edit screen
   void _navigateToNote(String noteId) async {
+    // Capture context before async operations
+    final context = _navigatorKey.currentContext;
+    final scaffoldMessenger =
+        context != null ? ScaffoldMessenger.of(context) : null;
+
     try {
       final authService = AuthService();
       final user = authService.currentUser;
@@ -144,11 +184,10 @@ class _MyAppState extends State<MyApp> {
       }
     } catch (e) {
       // Show error snackbar
-      final context = _navigatorKey.currentContext;
-      if (context != null && mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error opening note: $e')));
+      if (scaffoldMessenger != null && mounted) {
+        scaffoldMessenger.showSnackBar(
+          SnackBar(content: Text('Error opening note: $e')),
+        );
       }
     }
   }
@@ -209,10 +248,12 @@ class _MyAppState extends State<MyApp> {
       });
     } else {
       // If not a URL, show a message
+      final context = _navigatorKey.currentContext;
+      final scaffoldMessenger =
+          context != null ? ScaffoldMessenger.of(context) : null;
       Future.delayed(const Duration(milliseconds: 500), () {
-        final context = _navigatorKey.currentContext;
-        if (context != null) {
-          ScaffoldMessenger.of(context).showSnackBar(
+        if (scaffoldMessenger != null) {
+          scaffoldMessenger.showSnackBar(
             const SnackBar(content: Text('Please share a valid URL')),
           );
         }

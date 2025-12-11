@@ -428,6 +428,48 @@ class WebClipResult {
 - Handle authentication and paywalls gracefully
 - Cache images locally before uploading
 
+### 9. Drawing Service
+
+**Purpose**: Handle drawing creation, editing, and URL loading functionality
+
+**Key Methods**:
+```dart
+class DrawingService {
+  // Load existing drawing from Firebase Storage URL
+  Future<ui.Image?> loadDrawingFromUrl(String drawingUrl);
+  
+  // Cache drawing image locally for performance
+  Future<void> cacheDrawingImage(String drawingUrl, ui.Image image);
+  
+  // Get cached drawing image if available
+  Future<ui.Image?> getCachedDrawingImage(String drawingUrl);
+  
+  // Composite background image with new drawing paths
+  Future<ui.Image> compositeDrawingLayers(ui.Image? backgroundImage, List<DrawingPath> paths);
+  
+  // Scale image to fit canvas while maintaining aspect ratio
+  ui.Image scaleImageToCanvas(ui.Image image, Size canvasSize);
+  
+  // Validate drawing URL format and accessibility
+  Future<bool> validateDrawingUrl(String url);
+}
+
+class DrawingLoadResult {
+  final ui.Image? image;
+  final bool success;
+  final String? errorMessage;
+  final Size originalSize;
+}
+```
+
+**Implementation Details**:
+- Use Firebase Storage SDK to download images
+- Implement local caching using `path_provider` and device storage
+- Handle network errors and invalid URLs gracefully
+- Maintain original image aspect ratio during scaling
+- Support different image formats (PNG, JPEG)
+- Provide loading progress feedback
+
 ## Data Models
 
 ### Extended Note Model
@@ -528,6 +570,62 @@ class StatisticsModel {
   final double avgConnectionsPerNote;
 }
 ```
+
+## Correctness Properties
+
+*A property is a characteristic or behavior that should hold true across all valid executions of a system-essentially, a formal statement about what the system should do. Properties serve as the bridge between human-readable specifications and machine-verifiable correctness guarantees.*
+
+### Property 1: Tag suggestion relevance
+*For any* note content, generated tag suggestions should have confidence scores between 0 and 1, and tags should be ranked in descending order of confidence
+**Validates: Requirements 21.2, 21.4**
+
+### Property 2: Search result ranking consistency
+*For any* search query, results should be ordered by relevance score in descending order, and all returned notes should contain at least one matching keyword or tag
+**Validates: Requirements 22.6, 22.5**
+
+### Property 3: Voice transcription completeness
+*For any* voice recording session, if speech is detected, the transcription should contain non-empty text, and the recording duration should not exceed the configured maximum
+**Validates: Requirements 23.9, 23.4**
+
+### Property 4: Link parsing bidirectionality
+*For any* note containing [[Note Title]] syntax, the parsed outgoing links should create corresponding backlinks in the target notes
+**Validates: Requirements 24.1, 24.8**
+
+### Property 5: Graph node connectivity consistency
+*For any* note graph, the number of edges connected to a node should equal the sum of outgoing and incoming links for that note
+**Validates: Requirements 25.3, 25.4**
+
+### Property 6: Operational transform convergence
+*For any* two concurrent edit operations on the same text, applying operational transform should result in the same final text regardless of operation order
+**Validates: Requirements 26.8, 26.9**
+
+### Property 7: Audio attachment round-trip integrity
+*For any* audio recording, uploading to Firebase Storage and then downloading should preserve the audio duration and playback quality
+**Validates: Requirements 27.4, 27.5**
+
+### Property 8: OCR text extraction accuracy bounds
+*For any* image processed by OCR, the confidence score should be between 0 and 1, and extracted text should only contain printable characters
+**Validates: Requirements 29.3, 29.4**
+
+### Property 9: Web content extraction preservation
+*For any* valid web URL, the extracted content should preserve the original article structure with headings, paragraphs, and links intact
+**Validates: Requirements 30.4, 30.5**
+
+### Property 10: Folder hierarchy consistency
+*For any* folder structure, no folder should be its own ancestor, and the maximum nesting depth should not exceed 5 levels
+**Validates: Requirements 32.3, 32.12**
+
+### Property 11: Template variable substitution completeness
+*For any* template with variables, all {{variable_name}} placeholders should be replaced with user input, and no placeholder syntax should remain in the final note
+**Validates: Requirements 35.9, 35.10**
+
+### Property 12: Drawing URL loading preservation
+*For any* valid drawing URL, loading the image should preserve the original resolution and aspect ratio, and the loaded image should be displayable on the canvas
+**Validates: Requirements 36.1, 36.7**
+
+### Property 13: Drawing composition integrity
+*For any* existing drawing with new drawing paths added, the final saved image should contain both the original background and the new drawing elements without corruption
+**Validates: Requirements 36.4, 36.6**
 
 ## Firestore Data Structure
 
@@ -696,6 +794,10 @@ class GraphCanvas extends CustomPainter {
 - Undo/redo buttons
 - Grid/lined background toggle
 - Save and cancel buttons
+- Load existing drawing from URL as background layer
+- Toggle to show/hide background image while drawing
+- Automatic scaling for different canvas sizes
+- Error handling for invalid drawing URLs
 
 ### 9. Folder Tree View
 

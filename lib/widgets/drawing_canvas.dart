@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:ui' as ui;
 
 enum DrawingTool { pen, highlighter, eraser, line, rectangle, circle }
 
@@ -24,6 +25,8 @@ class DrawingCanvas extends StatefulWidget {
   final bool showGrid;
   final bool showLines;
   final Function(List<DrawingPath>) onPathsChanged;
+  final ui.Image? backgroundImage;
+  final bool showBackgroundImage;
 
   const DrawingCanvas({
     super.key,
@@ -34,6 +37,8 @@ class DrawingCanvas extends StatefulWidget {
     required this.showGrid,
     required this.showLines,
     required this.onPathsChanged,
+    this.backgroundImage,
+    this.showBackgroundImage = true,
   });
 
   @override
@@ -126,6 +131,8 @@ class _DrawingCanvasState extends State<DrawingCanvas> {
           currentPaint: _createPaint(),
           showGrid: widget.showGrid,
           showLines: widget.showLines,
+          backgroundImage: widget.backgroundImage,
+          showBackgroundImage: widget.showBackgroundImage,
         ),
         child: Container(),
       ),
@@ -141,6 +148,8 @@ class DrawingPainter extends CustomPainter {
   final Paint currentPaint;
   final bool showGrid;
   final bool showLines;
+  final ui.Image? backgroundImage;
+  final bool showBackgroundImage;
 
   DrawingPainter({
     required this.paths,
@@ -150,6 +159,8 @@ class DrawingPainter extends CustomPainter {
     required this.currentPaint,
     required this.showGrid,
     required this.showLines,
+    this.backgroundImage,
+    this.showBackgroundImage = true,
   });
 
   @override
@@ -159,6 +170,11 @@ class DrawingPainter extends CustomPainter {
       Rect.fromLTWH(0, 0, size.width, size.height),
       Paint()..color = Colors.white,
     );
+
+    // Draw background image if available and enabled
+    if (backgroundImage != null && showBackgroundImage) {
+      _drawBackgroundImage(canvas, size);
+    }
 
     // Draw grid or lines
     if (showGrid) {
@@ -214,6 +230,36 @@ class DrawingPainter extends CustomPainter {
     for (double y = lineSpacing; y < size.height; y += lineSpacing) {
       canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
     }
+  }
+
+  void _drawBackgroundImage(Canvas canvas, Size size) {
+    if (backgroundImage == null) return;
+
+    // Calculate scaling to fit the image within the canvas while maintaining aspect ratio
+    final imageSize = Size(
+      backgroundImage!.width.toDouble(),
+      backgroundImage!.height.toDouble(),
+    );
+    final scaleX = size.width / imageSize.width;
+    final scaleY = size.height / imageSize.height;
+    final scale = scaleX < scaleY ? scaleX : scaleY;
+
+    // Calculate position to center the image
+    final scaledWidth = imageSize.width * scale;
+    final scaledHeight = imageSize.height * scale;
+    final offsetX = (size.width - scaledWidth) / 2;
+    final offsetY = (size.height - scaledHeight) / 2;
+
+    // Draw the image with scaling and positioning
+    canvas.save();
+    canvas.translate(offsetX, offsetY);
+    canvas.scale(scale);
+    canvas.drawImage(
+      backgroundImage!,
+      Offset.zero,
+      Paint()..filterQuality = FilterQuality.high,
+    );
+    canvas.restore();
   }
 
   void _drawPath(Canvas canvas, DrawingPath drawingPath) {
@@ -296,6 +342,8 @@ class DrawingPainter extends CustomPainter {
         oldDelegate.currentPath != currentPath ||
         oldDelegate.shapeStartPoint != shapeStartPoint ||
         oldDelegate.showGrid != showGrid ||
-        oldDelegate.showLines != showLines;
+        oldDelegate.showLines != showLines ||
+        oldDelegate.backgroundImage != backgroundImage ||
+        oldDelegate.showBackgroundImage != showBackgroundImage;
   }
 }

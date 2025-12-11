@@ -319,3 +319,20 @@ This document specifies advanced features for NoteAssista that will significantl
 11. THE NoteAssista SHALL allow users to share templates with other users via export/import
 12. THE NoteAssista SHALL track template usage frequency and display most-used templates first
 
+### Requirement 36: Drawing URL Loading and Editing
+
+**User Story:** As a user, I want to load and edit existing drawings from URLs, so that I can modify previously saved drawings and continue working on them.
+
+#### Acceptance Criteria
+
+1. WHEN a drawing screen is opened with an existing drawing URL, THE NoteAssista SHALL download the image from Firebase Storage
+2. WHEN an existing drawing image is loaded, THE NoteAssista SHALL display it as a background layer on the drawing canvas
+3. THE NoteAssista SHALL allow users to draw over the existing image background
+4. WHEN editing an existing drawing, THE NoteAssista SHALL preserve the original image while adding new drawing paths on top
+5. THE NoteAssista SHALL provide a toggle to show or hide the background image while drawing
+6. WHEN saving an edited drawing, THE NoteAssista SHALL composite the background image with new drawing paths into a single image
+7. THE NoteAssista SHALL maintain the original image resolution and aspect ratio during editing
+8. IF the drawing URL is invalid or the image cannot be loaded, THEN THE NoteAssista SHALL display an error message and open an empty canvas
+9. THE NoteAssista SHALL cache downloaded drawing images locally to improve loading performance
+10. THE NoteAssista SHALL support editing drawings that were created with different canvas sizes by scaling appropriately
+

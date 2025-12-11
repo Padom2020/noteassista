@@ -13,6 +13,25 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
     
+    // Helper function to check if user is a collaborator on a note
+    function isCollaborator(noteData) {
+      return isAuthenticated() && 
+             noteData.isShared == true &&
+             request.auth.uid in noteData.collaborators.map(c => c.userId);
+    }
+    
+    // Helper function to get collaborator role
+    function getCollaboratorRole(noteData) {
+      let collaborator = noteData.collaborators.filter(c => c.userId == request.auth.uid)[0];
+      return collaborator != null ? collaborator.role : null;
+    }
+    
+    // Helper function to check if user has editor or owner role
+    function canEdit(noteData) {
+      let role = getCollaboratorRole(noteData);
+      return role == 'editor' || role == 'owner';
+    }
+    
     // Users collection rules
     match /users/{userId} {
       // Allow users to read and write only their own user document
@@ -20,8 +39,48 @@ service cloud.firestore {
       
       // Notes subcollection rules
       match /notes/{noteId} {
-        // Allow users to read and write only their own notes
+        // Owner has full access
         allow read, write: if isOwner(userId);
+        
+        // Collaborators can read shared notes
+        allow read: if isAuthenticated() && 
+                       resource.data.isShared == true &&
+                       request.auth.uid in resource.data.collaborators.map(c => c.userId);
+        
+        // Collaborators with editor or owner role can write
+        allow write: if isAuthenticated() && 
+                        resource.data.isShared == true &&
+                        canEdit(resource.data);
+        
+        // Allow creation of notes by owner
+        allow create: if isOwner(userId);
+        
+        // Prevent deletion by non-owners
+        allow delete: if isOwner(userId);
+      }
+      
+      // Folders subcollection rules
+      match /folders/{folderId} {
+        // Allow users to read and write only their own folders
+        allow read, write: if isOwner(userId);
+        
+        // Allow creation of folders by owner
+        allow create: if isOwner(userId);
+        
+        // Allow deletion of folders by owner
+        allow delete: if isOwner(userId);
+      }
+      
+      // Templates subcollection rules
+      match /templates/{templateId} {
+        // Allow users to read and write only their own templates
+        allow read, write: if isOwner(userId);
+        
+        // Allow creation of templates by owner
+        allow create: if isOwner(userId);
+        
+        // Allow deletion of templates by owner
+        allow delete: if isOwner(userId);
       }
     }
     
