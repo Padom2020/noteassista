@@ -1,0 +1,65 @@
+/// Cloudinary Configuration class for managing cloud storage settings
+class CloudinaryConfig {
+  /// To set up Cloudinary:
+  /// 1. Go to https://cloudinary.com and create a free account
+  /// 2. Get your Cloud Name from the dashboard
+  /// 3. Create an Upload Preset:
+  ///    - Go to Settings > Upload > Upload presets
+  ///    - Click "Add upload preset"
+  ///    - Set Signing Mode to "Unsigned"
+  ///    - Set Folder to "noteassista" (optional)
+  ///    - Enable "Use filename or externally defined Public ID"
+  ///    - Save the preset
+  /// 4. Replace the values below with your actual credentials
+  
+  // TODO: Replace with your actual Cloudinary cloud name
+  // Get this from: https://cloudinary.com/console
+  static const String cloudName = 'your-cloud-name';
+
+  // TODO: Replace with your upload preset name
+  // Create this in: Settings > Upload > Upload presets
+  static const String uploadPreset = 'your-upload-preset';
+
+  // Optional: Default folder for organizing uploads
+  static const String defaultFolder = 'noteassista';
+
+  /// Check if Cloudinary is properly configured
+  static bool get isConfigured {
+    return cloudName != 'your-cloud-name' &&
+        uploadPreset != 'your-upload-preset';
+  }
+}
+
+/// Cloudinary Setup Instructions:
+/// 
+/// 1. **Create Account**: Go to https://cloudinary.com/users/register/free
+/// 
+/// 2. **Get Cloud Name**: 
+///    - After login, you'll see your cloud name in the dashboard
+///    - It looks like: "dxyz123abc"
+/// 
+/// 3. **Create Upload Preset**:
+///    - Go to Settings (gear icon) > Upload tab
+///    - Click "Add upload preset" 
+///    - Preset name: "noteassista_drawings" (or any name you prefer)
+///    - Signing Mode: "Unsigned" (important!)
+///    - Folder: "noteassista" (optional, for organization)
+///    - Use filename: Enable this option
+///    - Click "Save"
+/// 
+/// 4. **Update Configuration**:
+///    - Copy this template to cloudinary_config.dart
+///    - Replace 'your-cloud-name' with your actual cloud name
+///    - Replace 'your-upload-preset' with your preset name
+/// 
+/// 5. **Free Tier Limits**:
+///    - 25 GB storage
+///    - 25 GB monthly bandwidth
+///    - 1,000 transformations per month
+///    - Perfect for personal note-taking apps!
+/// 
+/// Example:
+/// ```dart
+/// static const String cloudName = 'dxyz123abc';
+/// static const String uploadPreset = 'noteassista_drawings';
+/// ```

@@ -78,3 +78,83 @@ web/firebase-config.js
 # OS
 .DS_Store
 Thumbs.db
+
+# Additional sensitive files and configurations
+# API Keys and secrets
+lib/config/api_keys.dart
+lib/config/secrets.dart
+lib/config/*_config.dart
+lib/config/cloudinary_config.dart
+*.key
+*.pem
+*.p12
+*.keystore
+key.properties
+
+# Cloud service configurations
+**/cloudinary_config.dart
+**/aws_config.dart
+**/supabase_config.dart
+**/firebase_config.dart
+
+# Database and storage
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+logs/
+temp/
+
+# Build and cache directories
+coverage/
+.nyc_output/
+node_modules/
+.gradle/
+.kotlin/
+
+# Platform-specific generated files
+linux/flutter/generated_*
+macos/Flutter/Generated*
+windows/flutter/generated_*
+android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java
+
+# Configuration cache and reports
+android/build/reports/
+android/.gradle/
+**/configuration-cache/
+
+# Firebase and cloud service configs
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+database-debug.log
+pubspec.lock
+
+# Reserved device names (Windows)
+nul
+con
+prn
+aux
+com[1-9]
+lpt[1-9]
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# IDE and editor files
+.vscode/settings.json
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/dictionaries/
+.idea/shelf/
+
+# Test coverage
+coverage/
+test_coverage/
+lcov.info
