@@ -6,7 +6,7 @@ void main() {
     late WebClipperService service;
 
     setUp(() {
-      service = WebClipperService(storage: null);
+      service = WebClipperService();
     });
 
     group('Data Models', () {

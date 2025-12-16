@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_sound/flutter_sound.dart';
 import 'package:path_provider/path_provider.dart';
@@ -11,7 +10,6 @@ import 'package:speech_to_text/speech_to_text.dart' as stt;
 class VoiceService {
   final stt.SpeechToText _speechToText = stt.SpeechToText();
   final FlutterSoundRecorder _audioRecorder = FlutterSoundRecorder();
-  final FirebaseStorage _storage = FirebaseStorage.instance;
 
   final StreamController<String> _transcriptionController =
       StreamController<String>.broadcast();
@@ -180,12 +178,12 @@ class VoiceService {
     }
   }
 
-  /// Upload audio file to Firebase Storage
+  /// Save audio file locally (audio upload to cloud storage not implemented)
   /// [localPath] path to the local audio file
   /// [userId] user ID for organizing storage
   /// [noteId] note ID for organizing storage
-  /// Returns the download URL of the uploaded audio
-  Future<String> uploadAudio(
+  /// Returns the local file path (audio files are kept locally)
+  Future<String> saveAudio(
     String localPath,
     String userId,
     String noteId,
@@ -196,51 +194,48 @@ class VoiceService {
         throw Exception('Audio file not found at $localPath');
       }
 
+      // Create permanent local directory for audio files
+      final appDir = await getApplicationDocumentsDirectory();
+      final audioDir = Directory('${appDir.path}/audio/$userId/$noteId');
+      if (!await audioDir.exists()) {
+        await audioDir.create(recursive: true);
+      }
+
       // Create a unique filename
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final fileName = 'audio_$timestamp.aac';
-      final storagePath = 'users/$userId/notes/$noteId/audio/$fileName';
+      final permanentPath = '${audioDir.path}/$fileName';
 
-      // Upload to Firebase Storage
-      final ref = _storage.ref().child(storagePath);
-      final uploadTask = ref.putFile(
-        file,
-        SettableMetadata(
-          contentType: 'audio/aac',
-          customMetadata: {
-            'userId': userId,
-            'noteId': noteId,
-            'uploadedAt': DateTime.now().toIso8601String(),
-          },
-        ),
-      );
+      // Copy to permanent location
+      await file.copy(permanentPath);
 
-      // Wait for upload to complete
-      final snapshot = await uploadTask;
-
-      // Get download URL
-      final downloadUrl = await snapshot.ref.getDownloadURL();
-
-      // Clean up local file
+      // Clean up temp file
       try {
         await file.delete();
       } catch (e) {
-        debugPrint('Warning: Could not delete local audio file: $e');
+        debugPrint('Warning: Could not delete temp audio file: $e');
       }
 
-      return downloadUrl;
+      debugPrint('Audio saved locally: $permanentPath');
+      return 'file://$permanentPath';
     } catch (e) {
-      debugPrint('Error uploading audio: $e');
-      throw Exception('Failed to upload audio: $e');
+      debugPrint('Error saving audio: $e');
+      throw Exception('Failed to save audio: $e');
     }
   }
 
-  /// Delete audio file from Firebase Storage
-  /// [audioUrl] the download URL of the audio to delete
+  /// Delete audio file from local storage
+  /// [audioUrl] the local file URL of the audio to delete
   Future<void> deleteAudio(String audioUrl) async {
     try {
-      final ref = _storage.refFromURL(audioUrl);
-      await ref.delete();
+      if (audioUrl.startsWith('file://')) {
+        final filePath = audioUrl.substring(7);
+        final file = File(filePath);
+        if (await file.exists()) {
+          await file.delete();
+          debugPrint('Audio file deleted: $filePath');
+        }
+      }
     } catch (e) {
       debugPrint('Error deleting audio: $e');
       throw Exception('Failed to delete audio: $e');

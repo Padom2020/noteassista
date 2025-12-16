@@ -220,6 +220,7 @@ class _DailyNoteSettingsScreenState extends State<DailyNoteSettingsScreen> {
               title: const Text('Use Custom Templates'),
               subtitle: const Text(
                 'Enable to use your customized templates instead of defaults',
+                softWrap: true,
               ),
               value: _preferences.useCustomTemplate,
               onChanged: (value) {
@@ -242,6 +243,7 @@ class _DailyNoteSettingsScreenState extends State<DailyNoteSettingsScreen> {
                   title: const Text('Auto-create Daily Note'),
                   subtitle: const Text(
                     'Automatically create a daily note at a specified time',
+                    softWrap: true,
                   ),
                   value: _preferences.autoCreateDaily,
                   onChanged: (value) {
@@ -312,12 +314,14 @@ class _DailyNoteSettingsScreenState extends State<DailyNoteSettingsScreen> {
                     children: [
                       Icon(Icons.info_outline, color: Colors.blue[700]),
                       const SizedBox(width: 8),
-                      Text(
-                        'Template Variables',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blue[900],
-                          fontSize: 16,
+                      Expanded(
+                        child: Text(
+                          'Template Variables',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blue[900],
+                            fontSize: 16,
+                          ),
                         ),
                       ),
                     ],
@@ -326,27 +330,33 @@ class _DailyNoteSettingsScreenState extends State<DailyNoteSettingsScreen> {
                   const Text(
                     'Use variables in your templates to automatically insert dates and other information:',
                     style: TextStyle(fontSize: 14),
+                    softWrap: true,
                   ),
                   const SizedBox(height: 8),
                   const Text(
                     '• {{date}} - Current date (YYYY-MM-DD)',
                     style: TextStyle(fontSize: 13),
+                    softWrap: true,
                   ),
                   const Text(
                     '• {{year}} - Current year',
                     style: TextStyle(fontSize: 13),
+                    softWrap: true,
                   ),
                   const Text(
                     '• {{month}} - Current month name',
                     style: TextStyle(fontSize: 13),
+                    softWrap: true,
                   ),
                   const Text(
                     '• {{week_number}} - Week number (weekly only)',
                     style: TextStyle(fontSize: 13),
+                    softWrap: true,
                   ),
                   const Text(
                     '• {{start_date}}, {{end_date}} - Week range (weekly only)',
                     style: TextStyle(fontSize: 13),
+                    softWrap: true,
                   ),
                 ],
               ),
@@ -379,17 +389,21 @@ class _DailyNoteSettingsScreenState extends State<DailyNoteSettingsScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
-                TextButton.icon(
-                  onPressed: () => _resetToDefault(type),
-                  icon: const Icon(Icons.refresh, size: 18),
-                  label: const Text('Reset to Default'),
+                Flexible(
+                  child: TextButton.icon(
+                    onPressed: () => _resetToDefault(type),
+                    icon: const Icon(Icons.refresh, size: 18),
+                    label: const Text('Reset', overflow: TextOverflow.ellipsis),
+                  ),
                 ),
               ],
             ),
@@ -397,6 +411,7 @@ class _DailyNoteSettingsScreenState extends State<DailyNoteSettingsScreen> {
             Text(
               helpText,
               style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+              softWrap: true,
             ),
             const SizedBox(height: 12),
             TextField(

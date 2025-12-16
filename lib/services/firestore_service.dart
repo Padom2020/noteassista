@@ -165,6 +165,34 @@ class FirestoreService {
 
   // ==================== Folder Management Methods ====================
 
+  // Get all folders for a user
+  Future<List<FolderModel>> getFolders(String userId) async {
+    try {
+      final querySnapshot =
+          await _firestore
+              .collection('users')
+              .doc(userId)
+              .collection('folders')
+              .orderBy('createdAt')
+              .get();
+
+      return querySnapshot.docs
+          .map((doc) => FolderModel.fromFirestore(doc))
+          .toList();
+    } on FirebaseException catch (e) {
+      debugPrint('Firestore error getting folders: ${e.code} - ${e.message}');
+      // If permission denied, return empty list instead of throwing
+      if (e.code == 'permission-denied') {
+        debugPrint('Permission denied for folders, returning empty list');
+        return [];
+      }
+      throw Exception(_getErrorMessage(e));
+    } catch (e) {
+      debugPrint('Unexpected error getting folders: $e');
+      throw Exception(_getErrorMessage(e));
+    }
+  }
+
   // Create a new folder
   Future<String> createFolder(String userId, FolderModel folder) async {
     try {
@@ -273,29 +301,6 @@ class FirestoreService {
       throw Exception(_getErrorMessage(e));
     } catch (e) {
       debugPrint('Unexpected error deleting folder: $e');
-      throw Exception(_getErrorMessage(e));
-    }
-  }
-
-  // Get all folders with hierarchy support
-  Future<List<FolderModel>> getFolders(String userId) async {
-    try {
-      final snapshot =
-          await _firestore
-              .collection('users')
-              .doc(userId)
-              .collection('folders')
-              .orderBy('createdAt', descending: false)
-              .get();
-
-      return snapshot.docs
-          .map((doc) => FolderModel.fromFirestore(doc))
-          .toList();
-    } on FirebaseException catch (e) {
-      debugPrint('Firestore error getting folders: ${e.code} - ${e.message}');
-      throw Exception(_getErrorMessage(e));
-    } catch (e) {
-      debugPrint('Unexpected error getting folders: $e');
       throw Exception(_getErrorMessage(e));
     }
   }
@@ -573,6 +578,11 @@ class FirestoreService {
           .toList();
     } on FirebaseException catch (e) {
       debugPrint('Firestore error getting templates: ${e.code} - ${e.message}');
+      // If permission denied, return empty list instead of throwing
+      if (e.code == 'permission-denied') {
+        debugPrint('Permission denied for templates, returning empty list');
+        return [];
+      }
       throw Exception(_getErrorMessage(e));
     } catch (e) {
       debugPrint('Unexpected error getting templates: $e');

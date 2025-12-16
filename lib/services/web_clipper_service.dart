@@ -4,8 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:html/parser.dart' as html_parser;
 import 'package:html/dom.dart' as dom;
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:path_provider/path_provider.dart';
+import '../services/cloudinary_service.dart';
 
 /// Result of web page clipping operation
 class WebClipResult {
@@ -33,15 +33,9 @@ class WebClipResult {
 
 /// Service for clipping web content and converting to notes
 class WebClipperService {
-  final FirebaseStorage? _storage;
+  final CloudinaryService _cloudinaryService = CloudinaryService();
 
-  WebClipperService({FirebaseStorage? storage}) : _storage = storage;
-
-  /// Get Firebase Storage instance (lazy initialization)
-  FirebaseStorage get _storageInstance {
-    if (_storage != null) return _storage;
-    return FirebaseStorage.instance;
-  }
+  WebClipperService();
 
   // User agent to identify the app when fetching web pages
   static const String _userAgent =
@@ -192,8 +186,8 @@ class WebClipperService {
 
   /// Download and store a featured image
   ///
-  /// Downloads the image from the given URL and uploads it to Firebase Storage.
-  /// Returns the Firebase Storage download URL.
+  /// Downloads the image from the given URL and uploads it to Cloudinary.
+  /// Returns the Cloudinary secure URL.
   Future<String?> downloadFeaturedImage(String imageUrl, String userId) async {
     try {
       debugPrint('Downloading featured image: $imageUrl');
@@ -229,28 +223,14 @@ class WebClipperService {
       final tempFile = File(tempPath);
       await tempFile.writeAsBytes(response.bodyBytes);
 
-      // Upload to Firebase Storage
+      // Upload to Cloudinary
       final fileName = 'featured_$timestamp$extension';
-      final storageRef = _storageInstance
-          .ref()
-          .child('users')
-          .child(userId)
-          .child('web_clips')
-          .child(fileName);
-
-      final uploadTask = storageRef.putFile(
-        tempFile,
-        SettableMetadata(
-          contentType: contentType,
-          customMetadata: {
-            'uploadedAt': DateTime.now().toIso8601String(),
-            'sourceUrl': imageUrl,
-          },
-        ),
+      final result = await _cloudinaryService.uploadImage(
+        imageFile: tempFile,
+        userId: userId,
+        noteId: 'web_clip_$timestamp',
+        fileName: fileName,
       );
-
-      final snapshot = await uploadTask;
-      final downloadUrl = await snapshot.ref.getDownloadURL();
 
       // Clean up temp file
       try {
@@ -259,8 +239,13 @@ class WebClipperService {
         debugPrint('Failed to delete temp file: $e');
       }
 
-      debugPrint('Featured image uploaded: $downloadUrl');
-      return downloadUrl;
+      if (result.success && result.secureUrl != null) {
+        debugPrint('Featured image uploaded: ${result.secureUrl}');
+        return result.secureUrl;
+      } else {
+        debugPrint('Failed to upload featured image: ${result.errorMessage}');
+        return null;
+      }
     } catch (e) {
       debugPrint('Error downloading featured image: $e');
       // Return null instead of throwing - featured image is optional

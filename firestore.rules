@@ -13,25 +13,6 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
     
-    // Helper function to check if user is a collaborator on a note
-    function isCollaborator(noteData) {
-      return isAuthenticated() && 
-             noteData.isShared == true &&
-             request.auth.uid in noteData.collaborators.map(c => c.userId);
-    }
-    
-    // Helper function to get collaborator role
-    function getCollaboratorRole(noteData) {
-      let collaborator = noteData.collaborators.filter(c => c.userId == request.auth.uid)[0];
-      return collaborator != null ? collaborator.role : null;
-    }
-    
-    // Helper function to check if user has editor or owner role
-    function canEdit(noteData) {
-      let role = getCollaboratorRole(noteData);
-      return role == 'editor' || role == 'owner';
-    }
-    
     // Users collection rules
     match /users/{userId} {
       // Allow users to read and write only their own user document
@@ -45,12 +26,16 @@ service cloud.firestore {
         // Collaborators can read shared notes
         allow read: if isAuthenticated() && 
                        resource.data.isShared == true &&
-                       request.auth.uid in resource.data.collaborators.map(c => c.userId);
+                       resource.data.collaborators != null &&
+                       request.auth.uid in resource.data.collaborators;
         
         // Collaborators with editor or owner role can write
         allow write: if isAuthenticated() && 
                         resource.data.isShared == true &&
-                        canEdit(resource.data);
+                        resource.data.collaborators != null &&
+                        request.auth.uid in resource.data.collaborators &&
+                        (resource.data.collaborators[request.auth.uid].role == 'editor' || 
+                         resource.data.collaborators[request.auth.uid].role == 'owner');
         
         // Allow creation of notes by owner
         allow create: if isOwner(userId);
@@ -80,6 +65,18 @@ service cloud.firestore {
         allow create: if isOwner(userId);
         
         // Allow deletion of templates by owner
+        allow delete: if isOwner(userId);
+      }
+      
+      // Preferences subcollection rules
+      match /preferences/{preferenceId} {
+        // Allow users to read and write only their own preferences
+        allow read, write: if isOwner(userId);
+        
+        // Allow creation of preferences by owner
+        allow create: if isOwner(userId);
+        
+        // Allow deletion of preferences by owner
         allow delete: if isOwner(userId);
       }
     }

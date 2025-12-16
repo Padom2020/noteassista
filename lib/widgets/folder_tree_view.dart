@@ -325,16 +325,19 @@ class _FolderListTileState extends State<FolderListTile> {
               children: [
                 // Expand/collapse button for folders with children
                 if (widget.hasChildren)
-                  GestureDetector(
-                    onTap: widget.onExpandToggle,
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      child: Icon(
-                        widget.isExpanded
-                            ? Icons.expand_more
-                            : Icons.chevron_right,
-                        size: 20,
-                        color: Colors.grey[600],
+                  SizedBox(
+                    width: 28,
+                    child: GestureDetector(
+                      onTap: widget.onExpandToggle,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        child: Icon(
+                          widget.isExpanded
+                              ? Icons.expand_more
+                              : Icons.chevron_right,
+                          size: 20,
+                          color: Colors.grey[600],
+                        ),
                       ),
                     ),
                   )
@@ -366,8 +369,9 @@ class _FolderListTileState extends State<FolderListTile> {
                 ),
                 const SizedBox(width: 12),
 
-                // Folder name
+                // Folder name - takes most of the space
                 Expanded(
+                  flex: 3,
                   child: Text(
                     isAllNotes ? 'All Notes' : widget.folder!.name,
                     style: TextStyle(
@@ -384,42 +388,34 @@ class _FolderListTileState extends State<FolderListTile> {
                   ),
                 ),
 
-                // Note count badge
-                if (!isAllNotes && widget.folder!.noteCount > 0)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: folderColor.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      widget.folder!.noteCount.toString(),
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: folderColor,
-                      ),
-                    ),
-                  ),
-
-                // Favorite indicator
-                if (!isAllNotes && widget.folder!.isFavorite)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 8),
-                    child: Icon(Icons.star, size: 16, color: Colors.amber[700]),
-                  ),
-
-                // More options button
+                // Right side elements - show only menu button to prevent overflow
                 if (!isAllNotes)
-                  IconButton(
-                    icon: const Icon(Icons.more_vert, size: 20),
-                    onPressed: () => _showFolderMenu(context),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                    visualDensity: VisualDensity.compact,
+                  SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: IconButton(
+                      icon: Icon(
+                        // Show different icons based on folder state
+                        widget.folder!.isFavorite
+                            ? Icons.star
+                            : (widget.folder!.noteCount > 0
+                                ? Icons.more_horiz
+                                : Icons.more_vert),
+                        size: 16,
+                        color:
+                            widget.folder!.isFavorite
+                                ? Colors.amber[700]
+                                : Colors.grey[600],
+                      ),
+                      onPressed: () => _showFolderMenu(context),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      visualDensity: VisualDensity.compact,
+                      tooltip:
+                          widget.folder!.noteCount > 0
+                              ? '${widget.folder!.noteCount} notes'
+                              : 'Folder options',
+                    ),
                   ),
               ],
             ),

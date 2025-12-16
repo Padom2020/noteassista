@@ -350,7 +350,7 @@ class _AddNoteScreenState extends State<AddNoteScreen> {
       if (_currentRecordingPath != null) {
         // Create a temporary note ID for storage organization
         final tempNoteId = DateTime.now().millisecondsSinceEpoch.toString();
-        final audioUrl = await _voiceService.uploadAudio(
+        final audioUrl = await _voiceService.saveAudio(
           _currentRecordingPath!,
           userId,
           tempNoteId,

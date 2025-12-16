@@ -318,7 +318,7 @@ class _EditNoteScreenState extends State<EditNoteScreen> {
     try {
       // Upload audio recording if exists
       if (_currentRecordingPath != null) {
-        final audioUrl = await _voiceService.uploadAudio(
+        final audioUrl = await _voiceService.saveAudio(
           _currentRecordingPath!,
           userId,
           widget.note.id,

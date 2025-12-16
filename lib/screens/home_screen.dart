@@ -36,12 +36,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Folder filtering state
   String? _selectedFolderId;
-  String _selectedFolderName = 'All Notes';
   List<FolderModel> _folders = [];
 
   // Keys for feature tooltips
   final GlobalKey _voiceFabKey = GlobalKey();
-  final GlobalKey _graphViewKey = GlobalKey();
   final GlobalKey _foldersKey = GlobalKey();
 
   @override
@@ -717,13 +715,57 @@ class _HomeScreenState extends State<HomeScreen> {
               child: DropdownButton<String?>(
                 value: _selectedFolderId,
                 isExpanded: true,
-                hint: Text(
-                  _selectedFolderName,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 16,
-                  ),
-                ),
+                selectedItemBuilder: (BuildContext context) {
+                  return [
+                    // For "All Notes" (null value)
+                    Row(
+                      children: [
+                        const Icon(Icons.home, size: 18),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'All Notes',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 16,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    // For folder items
+                    ..._folders.map(
+                      (folder) => Row(
+                        children: [
+                          Container(
+                            width: 18,
+                            height: 18,
+                            decoration: BoxDecoration(
+                              color: Color(
+                                int.parse(
+                                  folder.color.replaceFirst('#', '0xFF'),
+                                ),
+                              ),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              folder.name,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 16,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ];
+                },
                 items: [
                   const DropdownMenuItem<String?>(
                     value: null,
@@ -731,7 +773,12 @@ class _HomeScreenState extends State<HomeScreen> {
                       children: [
                         Icon(Icons.home, size: 18),
                         SizedBox(width: 8),
-                        Text('All Notes'),
+                        Expanded(
+                          child: Text(
+                            'All Notes',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -784,14 +831,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 onChanged: (String? newValue) {
                   setState(() {
                     _selectedFolderId = newValue;
-                    if (newValue == null) {
-                      _selectedFolderName = 'All Notes';
-                    } else {
-                      final folder = _folders.firstWhere(
-                        (f) => f.id == newValue,
-                      );
-                      _selectedFolderName = folder.name;
-                    }
                   });
                 },
               ),
@@ -831,19 +870,20 @@ class _HomeScreenState extends State<HomeScreen> {
             size: 18,
           ),
           const SizedBox(width: 8),
-          Text(
-            'Viewing: ${folder.name}',
-            style: TextStyle(
-              fontWeight: FontWeight.w600,
-              color: Color(int.parse(folder.color.replaceFirst('#', '0xFF'))),
+          Expanded(
+            child: Text(
+              'Viewing: ${folder.name}',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: Color(int.parse(folder.color.replaceFirst('#', '0xFF'))),
+              ),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
-          const Spacer(),
           TextButton(
             onPressed: () {
               setState(() {
                 _selectedFolderId = null;
-                _selectedFolderName = 'All Notes';
               });
             },
             child: const Text('View All'),
@@ -859,32 +899,28 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Row(
-          children: [
-            Image.asset(
-              'assets/images/noteassista-logo-transparent.png',
-              height: 32,
-              errorBuilder: (context, error, stackTrace) {
-                return const Icon(Icons.note_alt, size: 28);
-              },
-            ),
-            const SizedBox(width: 12),
-            const Text('NoteAssista'),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.today),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const DailyNoteCalendarScreen(),
-                ),
+        title: Container(
+          height: 40,
+          alignment: Alignment.centerLeft,
+          child: Image.asset(
+            'assets/images/noteassista-white-preview.png',
+            height: 36,
+            fit: BoxFit.fitHeight,
+            filterQuality: FilterQuality.high,
+            errorBuilder: (context, error, stackTrace) {
+              debugPrint('Logo loading error: $error');
+              return const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.note_alt, size: 24),
+                  SizedBox(width: 8),
+                  Text('NoteAssista'),
+                ],
               );
             },
-            tooltip: 'Daily Notes',
           ),
+        ),
+        actions: [
           FeatureTooltip(
             tooltipId: 'folders_feature',
             message: 'Organize notes into folders and sub-folders',
@@ -903,24 +939,6 @@ class _HomeScreenState extends State<HomeScreen> {
               tooltip: 'Folders',
             ),
           ),
-          FeatureTooltip(
-            tooltipId: 'graph_view_feature',
-            message: 'Visualize connections between your notes',
-            direction: TooltipDirection.bottom,
-            child: IconButton(
-              key: _graphViewKey,
-              icon: const Icon(Icons.account_tree),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const GraphViewScreen(),
-                  ),
-                );
-              },
-              tooltip: 'Graph View',
-            ),
-          ),
           IconButton(
             icon: const Icon(Icons.notifications),
             onPressed: () {
@@ -933,22 +951,31 @@ class _HomeScreenState extends State<HomeScreen> {
             },
             tooltip: 'Reminders',
           ),
-          IconButton(
-            icon: const Icon(Icons.bar_chart),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const StatisticsScreen(),
-                ),
-              );
-            },
-            tooltip: 'Statistics',
-          ),
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert),
             onSelected: (value) {
-              if (value == 'whats_new') {
+              if (value == 'daily_notes') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const DailyNoteCalendarScreen(),
+                  ),
+                );
+              } else if (value == 'graph_view') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const GraphViewScreen(),
+                  ),
+                );
+              } else if (value == 'statistics') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const StatisticsScreen(),
+                  ),
+                );
+              } else if (value == 'whats_new') {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -967,6 +994,36 @@ class _HomeScreenState extends State<HomeScreen> {
             },
             itemBuilder:
                 (context) => [
+                  const PopupMenuItem(
+                    value: 'daily_notes',
+                    child: Row(
+                      children: [
+                        Icon(Icons.today, size: 20),
+                        SizedBox(width: 12),
+                        Text('Daily Notes'),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'graph_view',
+                    child: Row(
+                      children: [
+                        const Icon(Icons.account_tree, size: 20),
+                        const SizedBox(width: 12),
+                        const Text('Graph View'),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'statistics',
+                    child: Row(
+                      children: [
+                        Icon(Icons.bar_chart, size: 20),
+                        SizedBox(width: 12),
+                        Text('Statistics'),
+                      ],
+                    ),
+                  ),
                   const PopupMenuItem(
                     value: 'whats_new',
                     child: Row(

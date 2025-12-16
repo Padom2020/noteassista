@@ -71,7 +71,7 @@ class _FeatureTooltipState extends State<FeatureTooltip> {
   }
 
   Future<void> _dismissTooltip() async {
-    if (_showTooltip) {
+    if (_showTooltip && _overlayEntry != null) {
       await _onboardingService.markTooltipAsSeen(widget.tooltipId);
       _overlayEntry?.remove();
       _overlayEntry = null;

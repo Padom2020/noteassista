@@ -9,8 +9,8 @@ void main() {
     late OCRService service;
 
     setUp(() {
-      // Pass null for storage to avoid Firebase initialization in tests
-      service = OCRService(storage: null);
+      // Initialize OCR service for tests
+      service = OCRService();
     });
 
     tearDown(() async {
@@ -112,7 +112,7 @@ void main() {
 
     group('Service Initialization', () {
       test('OCRService can be instantiated', () {
-        expect(() => OCRService(storage: null), returnsNormally);
+        expect(() => OCRService(), returnsNormally);
       });
 
       test('OCRService isAvailable returns true', () async {
@@ -121,8 +121,8 @@ void main() {
       });
 
       test('Multiple OCRService instances can coexist', () {
-        final service1 = OCRService(storage: null);
-        final service2 = OCRService(storage: null);
+        final service1 = OCRService();
+        final service2 = OCRService();
 
         expect(service1, isNotNull);
         expect(service2, isNotNull);

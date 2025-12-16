@@ -1,7 +1,6 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:file_picker/file_picker.dart';
+// import 'package:file_picker/file_picker.dart'; // Removed due to Gradle compatibility issues
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
 
@@ -29,30 +28,17 @@ class _ImportTemplateDialogState extends State<ImportTemplateDialog> {
   }
 
   Future<void> _importFromFile() async {
-    try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['json'],
-        allowMultiple: false,
+    // File picker functionality temporarily disabled due to Gradle compatibility issues
+    // Users can paste JSON content directly using the clipboard import instead
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'File import temporarily unavailable. Please use "Import from Clipboard" instead.',
+          ),
+          duration: Duration(seconds: 3),
+        ),
       );
-
-      if (result != null && result.files.single.path != null) {
-        final file = File(result.files.single.path!);
-        final content = await file.readAsString();
-
-        setState(() {
-          _jsonController.text = content;
-          _validationError = null;
-        });
-
-        _validateTemplate(content);
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _validationError = 'Error reading file: $e';
-        });
-      }
     }
   }
 

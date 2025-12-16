@@ -4,7 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
-import 'package:firebase_storage/firebase_storage.dart';
+import '../services/cloudinary_service.dart';
 import 'package:path_provider/path_provider.dart';
 import '../widgets/drawing_canvas.dart';
 import '../services/ocr_service.dart';
@@ -30,6 +30,7 @@ class _DrawingScreenState extends State<DrawingScreen> {
   final GlobalKey _canvasKey = GlobalKey();
   final OCRService _ocrService = OCRService();
   final DrawingService _drawingService = DrawingService();
+  final CloudinaryService _cloudinaryService = CloudinaryService();
   List<DrawingPath> _paths = [];
   List<DrawingPath> _undoStack = [];
 
@@ -213,29 +214,96 @@ class _DrawingScreenState extends State<DrawingScreen> {
       );
       await file.writeAsBytes(pngBytes);
 
-      // Upload to Firebase Storage
-      final storageRef = FirebaseStorage.instance
-          .ref()
-          .child('users')
-          .child(widget.userId)
-          .child('drawings')
-          .child(
-            '${widget.noteId}_${DateTime.now().millisecondsSinceEpoch}.png',
+      // Try Cloudinary first, fallback to local storage if it fails
+      try {
+        // Check if Cloudinary is configured
+        if (!_cloudinaryService.isConfigured()) {
+          debugPrint('Cloudinary not configured, using local storage fallback');
+          return await _saveDrawingLocally(file);
+        }
+
+        // Upload to Cloudinary
+        final result = await _cloudinaryService.uploadImage(
+          imageFile: file,
+          userId: widget.userId,
+          noteId: widget.noteId,
+        );
+
+        if (result.success && result.secureUrl != null) {
+          // Clean up temp file
+          await file.delete();
+
+          debugPrint('Drawing uploaded to Cloudinary: ${result.secureUrl}');
+          return result.secureUrl!;
+        } else {
+          throw Exception(result.errorMessage ?? 'Cloudinary upload failed');
+        }
+      } catch (e) {
+        // Don't delete temp file yet - we might need it for local storage fallback
+
+        debugPrint('Cloudinary upload error: $e');
+
+        // Try local storage fallback
+        debugPrint('Attempting local storage fallback...');
+        try {
+          final localUrl = await _saveDrawingLocally(file);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Drawing saved locally (Cloudinary unavailable)'),
+                backgroundColor: Colors.orange,
+                duration: Duration(seconds: 3),
+              ),
+            );
+          }
+          return localUrl;
+        } catch (localError) {
+          debugPrint('Local storage also failed: $localError');
+        }
+
+        // Clean up temp file after attempting local storage or for non-storage errors
+        try {
+          await file.delete();
+        } catch (deleteError) {
+          debugPrint('Error deleting temp file: $deleteError');
+        }
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to save drawing: $e'),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 5),
+            ),
           );
-
-      await storageRef.putFile(file);
-      final downloadUrl = await storageRef.getDownloadURL();
-
-      // Clean up temp file
-      await file.delete();
-
-      return downloadUrl;
+        }
+        return null;
+      }
     } catch (e) {
       debugPrint('Error saving drawing: $e');
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to save drawing: $e')));
+        String errorMessage = 'Failed to save drawing';
+        if (e.toString().contains('permission')) {
+          errorMessage =
+              'Permission denied. Please check Firebase Storage rules.';
+        } else if (e.toString().contains('network')) {
+          errorMessage = 'Network error. Please check your connection.';
+        } else {
+          errorMessage = 'Failed to save drawing: $e';
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'Retry',
+              textColor: Colors.white,
+              onPressed: () => _captureAndSaveDrawing(),
+            ),
+          ),
+        );
       }
       return null;
     } finally {
@@ -244,6 +312,40 @@ class _DrawingScreenState extends State<DrawingScreen> {
           _isSaving = false;
         });
       }
+    }
+  }
+
+  /// Fallback method to save drawing locally when Firebase Storage is unavailable
+  Future<String?> _saveDrawingLocally(File tempFile) async {
+    try {
+      // Create a permanent local directory for drawings
+      final appDir = await getApplicationDocumentsDirectory();
+      final drawingsDir = Directory('${appDir.path}/drawings');
+      if (!await drawingsDir.exists()) {
+        await drawingsDir.create(recursive: true);
+      }
+
+      // Create a unique filename
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final localFile = File(
+        '${drawingsDir.path}/${widget.noteId}_$timestamp.png',
+      );
+
+      // Copy the temp file to permanent location
+      await tempFile.copy(localFile.path);
+
+      // Clean up temp file
+      await tempFile.delete();
+
+      // Return local file path as URL
+      return 'file://${localFile.path}';
+    } catch (e) {
+      debugPrint('Error saving drawing locally: $e');
+      // Clean up temp file on error
+      try {
+        await tempFile.delete();
+      } catch (_) {}
+      return null;
     }
   }
 

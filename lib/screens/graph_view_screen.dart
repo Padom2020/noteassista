@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:vector_math/vector_math_64.dart' show Vector3, Matrix4;
 import '../services/link_management_service.dart';
 import '../utils/performance_utils.dart';
 
@@ -173,6 +174,62 @@ class _GraphViewScreenState extends State<GraphViewScreen>
     if (node != null && mounted) {
       Navigator.pop(context, nodeId);
     }
+  }
+
+  void _handleTapUp(TapUpDetails details) {
+    final nodeId = _getNodeAtPosition(details.localPosition);
+    if (nodeId != null) {
+      _onNodeTap(nodeId);
+    }
+  }
+
+  void _handleDoubleTap(TapDownDetails details) {
+    final nodeId = _getNodeAtPosition(details.localPosition);
+    if (nodeId != null) {
+      _onNodeDoubleTap(nodeId);
+    }
+  }
+
+  String? _getNodeAtPosition(Offset position) {
+    if (_graphData == null) return null;
+
+    // Get the transformation matrix to account for zoom and pan
+    final Matrix4 transform = _transformationController.value;
+    final Matrix4 inverse = Matrix4.inverted(transform);
+    final Vector3 transformed = inverse.transform3(
+      Vector3(position.dx, position.dy, 0),
+    );
+    final Offset transformedPosition = Offset(transformed.x, transformed.y);
+
+    // Calculate center offset
+    final RenderBox? renderBox = context.findRenderObject() as RenderBox?;
+    if (renderBox == null) return null;
+
+    final size = renderBox.size;
+    final centerX = size.width / 2;
+    final centerY = size.height / 2;
+
+    // Check each node to see if the tap position is within its bounds
+    for (final node in _graphData!.nodes) {
+      // Skip if in local graph mode and node isn't highlighted
+      if (_showLocalGraph && !_highlightedNodeIds.contains(node.id)) {
+        continue;
+      }
+
+      final nodeCenter = Offset(centerX + node.x, centerY + node.y);
+      final distance = (transformedPosition - nodeCenter).distance;
+
+      // Calculate node size (same logic as in GraphPainter)
+      final baseSize = 20.0;
+      final sizeMultiplier = 1.0 + (node.connectionCount * 0.2);
+      final nodeSize = baseSize * sizeMultiplier.clamp(1.0, 3.0);
+
+      if (distance <= nodeSize) {
+        return node.id;
+      }
+    }
+
+    return null;
   }
 
   Set<String> _getConnectedNodes(String nodeId, {int degrees = 1}) {
@@ -356,16 +413,18 @@ class _GraphViewScreenState extends State<GraphViewScreen>
       boundaryMargin: const EdgeInsets.all(double.infinity),
       minScale: 0.1,
       maxScale: 4.0,
-      child: CustomPaint(
-        painter: GraphPainter(
-          graphData: _graphData!,
-          selectedNodeId: _selectedNodeId,
-          highlightedNodeIds: _highlightedNodeIds,
-          showLocalGraph: _showLocalGraph,
-          onNodeTap: _onNodeTap,
-          onNodeDoubleTap: _onNodeDoubleTap,
+      child: GestureDetector(
+        onTapUp: (details) => _handleTapUp(details),
+        onDoubleTapDown: (details) => _handleDoubleTap(details),
+        child: CustomPaint(
+          painter: GraphPainter(
+            graphData: _graphData!,
+            selectedNodeId: _selectedNodeId,
+            highlightedNodeIds: _highlightedNodeIds,
+            showLocalGraph: _showLocalGraph,
+          ),
+          size: Size.infinite,
         ),
-        size: Size.infinite,
       ),
     );
   }
@@ -377,16 +436,12 @@ class GraphPainter extends CustomPainter {
   final String? selectedNodeId;
   final Set<String> highlightedNodeIds;
   final bool showLocalGraph;
-  final Function(String) onNodeTap;
-  final Function(String) onNodeDoubleTap;
 
   GraphPainter({
     required this.graphData,
     this.selectedNodeId,
     required this.highlightedNodeIds,
     required this.showLocalGraph,
-    required this.onNodeTap,
-    required this.onNodeDoubleTap,
   });
 
   @override

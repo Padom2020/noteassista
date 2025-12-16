@@ -368,7 +368,10 @@
   - Add loading indicator while downloading image
   - _Requirements: 36_
 
-- [ ]* 25.4 Write property tests for drawing URL loading
+- [x]* 25.4 Write property tests for drawing URL loading
+
+
+
   - **Property 12: Drawing URL loading preservation**
   - **Validates: Requirements 36.1, 36.7**
   - **Property 13: Drawing composition integrity** 

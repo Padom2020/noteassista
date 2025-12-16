@@ -184,6 +184,10 @@ class MigrationService {
         return result;
       }
 
+      // Skip folder creation during migration - let user create them when needed
+      debugPrint('Skipping default folder creation during migration');
+      return result;
+
       // Create default folders
       final defaultFolders = [
         FolderModel(
@@ -250,6 +254,10 @@ class MigrationService {
         );
         return result;
       }
+
+      // Skip template creation during migration - let user create them when needed
+      debugPrint('Skipping default template creation during migration');
+      return result;
 
       // Use the FirestoreService method to create predefined templates
       await _firestoreService.createPredefinedTemplates(userId);

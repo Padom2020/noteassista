@@ -14,7 +14,7 @@ class DrawingService {
 
   final Map<String, ui.Image> _imageCache = {};
 
-  /// Load existing drawing from Firebase Storage URL
+  /// Load existing drawing from Firebase Storage URL or local file
   Future<DrawingLoadResult> loadDrawingFromUrl(String drawingUrl) async {
     try {
       // Check cache first
@@ -39,18 +39,37 @@ class DrawingService {
         );
       }
 
-      // Download image from Firebase Storage
-      final response = await http.get(Uri.parse(drawingUrl));
-      if (response.statusCode != 200) {
-        return DrawingLoadResult(
-          success: false,
-          errorMessage: 'Failed to download image: HTTP ${response.statusCode}',
-          originalSize: Size.zero,
-        );
+      Uint8List bytes;
+
+      // Handle local file URLs
+      if (drawingUrl.startsWith('file://')) {
+        final filePath = drawingUrl.substring(7); // Remove 'file://' prefix
+        final file = File(filePath);
+
+        if (!await file.exists()) {
+          return DrawingLoadResult(
+            success: false,
+            errorMessage: 'Local drawing file not found',
+            originalSize: Size.zero,
+          );
+        }
+
+        bytes = await file.readAsBytes();
+      } else {
+        // Download image from Firebase Storage
+        final response = await http.get(Uri.parse(drawingUrl));
+        if (response.statusCode != 200) {
+          return DrawingLoadResult(
+            success: false,
+            errorMessage:
+                'Failed to download image: HTTP ${response.statusCode}',
+            originalSize: Size.zero,
+          );
+        }
+        bytes = response.bodyBytes;
       }
 
       // Convert bytes to ui.Image
-      final Uint8List bytes = response.bodyBytes;
       final ui.Codec codec = await ui.instantiateImageCodec(bytes);
       final ui.FrameInfo frameInfo = await codec.getNextFrame();
       final ui.Image image = frameInfo.image;
@@ -180,6 +199,17 @@ class DrawingService {
       // Check if it's a valid URL
       final uri = Uri.tryParse(url);
       if (uri == null) return false;
+
+      // Handle local file URLs
+      if (uri.scheme == 'file') {
+        final file = File(uri.path);
+        return await file.exists();
+      }
+
+      // Check if it's HTTPS protocol for remote URLs
+      if (uri.scheme != 'https') {
+        return false;
+      }
 
       // Check if it's a Firebase Storage URL
       if (!url.contains('firebasestorage.googleapis.com')) {
