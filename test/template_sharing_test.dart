@@ -1,8 +1,16 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:noteassista/services/firestore_service.dart';
 import 'package:noteassista/models/template_model.dart';
+import 'test_helpers.dart';
 
 void main() {
+  setUpAll(() async {
+    await setupFirebaseAuthMocks();
+  });
+
+  tearDownAll(() {
+    tearDownFirebaseAuthMocks();
+  });
   group('Template Sharing Tests', () {
     late FirestoreService firestoreService;
     late TemplateModel testTemplate;

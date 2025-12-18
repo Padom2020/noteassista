@@ -1,9 +1,10 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:vector_math/vector_math_64.dart' show Vector3, Matrix4;
 import '../services/link_management_service.dart';
+import '../services/graph_navigation_service.dart';
 import '../utils/performance_utils.dart';
+import '../utils/graph_coordinate_system.dart';
 
 /// Screen that displays an interactive graph visualization of note connections
 class GraphViewScreen extends StatefulWidget {
@@ -16,6 +17,7 @@ class GraphViewScreen extends StatefulWidget {
 class _GraphViewScreenState extends State<GraphViewScreen>
     with TickerProviderStateMixin, DebounceMixin {
   final LinkManagementService _linkService = LinkManagementService();
+  final GraphNavigationService _navigationService = GraphNavigationService();
   final TransformationController _transformationController =
       TransformationController();
 
@@ -154,149 +156,474 @@ class _GraphViewScreenState extends State<GraphViewScreen>
   }
 
   void _onNodeTap(String nodeId) {
-    setState(() {
-      if (_selectedNodeId == nodeId) {
-        _selectedNodeId = null;
-        _highlightedNodeIds.clear();
-      } else {
-        _selectedNodeId = nodeId;
-        _highlightedNodeIds = _getConnectedNodes(nodeId);
-      }
-    });
+    // Input validation
+    if (!GraphCoordinateSystem.validateNodeId(nodeId, 'onNodeTap')) {
+      debugPrint('GraphViewScreen._onNodeTap: Invalid node ID: $nodeId');
+      return;
+    }
+
+    // Validate that the node exists in the graph data
+    if (_graphData == null ||
+        !_graphData!.nodes.any((node) => node.id == nodeId)) {
+      debugPrint(
+        'GraphViewScreen._onNodeTap: Node not found in graph data: $nodeId',
+      );
+      return;
+    }
+
+    try {
+      setState(() {
+        if (_selectedNodeId == nodeId) {
+          _selectedNodeId = null;
+          _highlightedNodeIds.clear();
+        } else {
+          _selectedNodeId = nodeId;
+          _highlightedNodeIds = _getConnectedNodes(nodeId);
+        }
+      });
+    } catch (e) {
+      debugPrint('GraphViewScreen._onNodeTap: Error updating state: $e');
+    }
   }
 
   void _onNodeDoubleTap(String nodeId) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+    // Input validation
+    if (!GraphCoordinateSystem.validateNodeId(nodeId, 'onNodeDoubleTap')) {
+      debugPrint('GraphViewScreen._onNodeDoubleTap: Invalid node ID: $nodeId');
+      return;
+    }
 
-    // Find the note and navigate to it
-    final node = _graphData?.nodes.firstWhere((n) => n.id == nodeId);
-    if (node != null && mounted) {
-      Navigator.pop(context, nodeId);
+    // Validate that the node exists in the graph data
+    if (_graphData == null ||
+        !_graphData!.nodes.any((node) => node.id == nodeId)) {
+      debugPrint(
+        'GraphViewScreen._onNodeDoubleTap: Node not found in graph data: $nodeId',
+      );
+      return;
+    }
+
+    // Validate context is still mounted
+    if (!mounted) {
+      debugPrint(
+        'GraphViewScreen._onNodeDoubleTap: Widget not mounted, aborting navigation',
+      );
+      return;
+    }
+
+    try {
+      // Use the navigation service for robust navigation handling
+      final success = await _navigationService.navigateToNote(context, nodeId);
+
+      // If navigation was successful, close the graph view
+      if (success && mounted) {
+        Navigator.pop(context, nodeId);
+      }
+    } catch (e) {
+      debugPrint(
+        'GraphViewScreen._onNodeDoubleTap: Error during navigation: $e',
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to open note: ${e.toString()}'),
+            backgroundColor: Colors.red[600],
+          ),
+        );
+      }
     }
   }
 
-  void _handleTapUp(TapUpDetails details) {
-    final nodeId = _getNodeAtPosition(details.localPosition);
-    if (nodeId != null) {
-      _onNodeTap(nodeId);
+  void _handleTap(TapUpDetails details) {
+    // Input validation
+    if (!GraphCoordinateSystem.validateGestureInput(
+      details.localPosition,
+      'handleTap',
+    )) {
+      debugPrint('GraphViewScreen._handleTap: Invalid tap details');
+      return;
+    }
+
+    try {
+      final nodeId = _getNodeAtPosition(details.localPosition);
+      if (nodeId != null) {
+        _onNodeTap(nodeId);
+      } else {
+        // Handle empty space tap - clear selection and provide visual feedback
+        _handleEmptySpaceTap(details.localPosition);
+      }
+    } catch (e) {
+      debugPrint('GraphViewScreen._handleTap: Error handling tap: $e');
     }
   }
 
-  void _handleDoubleTap(TapDownDetails details) {
-    final nodeId = _getNodeAtPosition(details.localPosition);
-    if (nodeId != null) {
-      _onNodeDoubleTap(nodeId);
+  void _handleDoubleTap() {
+    // Double-tap handling will be done through onDoubleTapDown for position detection
+    // This callback is required for proper gesture recognition
+    debugPrint('GraphViewScreen._handleDoubleTap: Double-tap gesture detected');
+  }
+
+  void _handleDoubleTapDown(TapDownDetails details) {
+    // Input validation
+    if (!GraphCoordinateSystem.validateGestureInput(
+      details.localPosition,
+      'handleDoubleTapDown',
+    )) {
+      debugPrint(
+        'GraphViewScreen._handleDoubleTapDown: Invalid double-tap details',
+      );
+      return;
+    }
+
+    try {
+      final nodeId = _getNodeAtPosition(details.localPosition);
+      if (nodeId != null) {
+        debugPrint(
+          'GraphViewScreen._handleDoubleTapDown: Double-tap on node: $nodeId',
+        );
+        _onNodeDoubleTap(nodeId);
+      } else {
+        // Handle empty space double-tap - ensure it doesn't interfere with zoom/pan
+        _handleEmptySpaceDoubleTap(details.localPosition);
+      }
+    } catch (e) {
+      debugPrint(
+        'GraphViewScreen._handleDoubleTapDown: Error handling double-tap: $e',
+      );
+    }
+  }
+
+  /// Handles taps on empty space (outside of node boundaries)
+  void _handleEmptySpaceTap(Offset position) {
+    // Input validation
+    if (!GraphCoordinateSystem.validateGestureInput(
+      position,
+      'handleEmptySpaceTap',
+    )) {
+      debugPrint('GraphViewScreen._handleEmptySpaceTap: Invalid position');
+      return;
+    }
+
+    try {
+      // Clear selection and highlighted nodes
+      final hadSelection =
+          _selectedNodeId != null || _highlightedNodeIds.isNotEmpty;
+
+      setState(() {
+        _selectedNodeId = null;
+        _highlightedNodeIds.clear();
+
+        // If we were in local graph mode and had a selection, exit local mode
+        if (_showLocalGraph && hadSelection) {
+          _showLocalGraph = false;
+        }
+      });
+
+      // Provide visual feedback if there was a selection to clear
+      if (hadSelection) {
+        debugPrint('GraphViewScreen._handleEmptySpaceTap: Cleared selection');
+
+        // Optional: Show a brief visual indication that selection was cleared
+        if (mounted) {
+          ScaffoldMessenger.of(context).removeCurrentSnackBar();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Selection cleared'),
+              duration: const Duration(milliseconds: 1000),
+              behavior: SnackBarBehavior.floating,
+              margin: const EdgeInsets.only(bottom: 100, left: 16, right: 16),
+              backgroundColor: Colors.grey[700],
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint(
+        'GraphViewScreen._handleEmptySpaceTap: Error handling empty space tap: $e',
+      );
+    }
+  }
+
+  /// Handles double-taps on empty space (outside of node boundaries)
+  void _handleEmptySpaceDoubleTap(Offset position) {
+    // Input validation
+    if (!GraphCoordinateSystem.validateGestureInput(
+      position,
+      'handleEmptySpaceDoubleTap',
+    )) {
+      debugPrint(
+        'GraphViewScreen._handleEmptySpaceDoubleTap: Invalid position',
+      );
+      return;
+    }
+
+    try {
+      debugPrint(
+        'GraphViewScreen._handleEmptySpaceDoubleTap: Double-tap on empty space',
+      );
+
+      // For empty space double-taps, we don't want to interfere with zoom/pan gestures
+      // The InteractiveViewer should handle double-tap-to-zoom functionality
+      // We just ensure our selection state is cleared
+      setState(() {
+        _selectedNodeId = null;
+        _highlightedNodeIds.clear();
+
+        // Exit local graph mode if active
+        if (_showLocalGraph) {
+          _showLocalGraph = false;
+        }
+      });
+
+      // Note: We don't show a snackbar for double-tap as it might interfere with zoom feedback
+    } catch (e) {
+      debugPrint(
+        'GraphViewScreen._handleEmptySpaceDoubleTap: Error handling empty space double-tap: $e',
+      );
     }
   }
 
   String? _getNodeAtPosition(Offset position) {
-    if (_graphData == null) return null;
-
-    // Get the transformation matrix to account for zoom and pan
-    final Matrix4 transform = _transformationController.value;
-    final Matrix4 inverse = Matrix4.inverted(transform);
-    final Vector3 transformed = inverse.transform3(
-      Vector3(position.dx, position.dy, 0),
-    );
-    final Offset transformedPosition = Offset(transformed.x, transformed.y);
-
-    // Calculate center offset
-    final RenderBox? renderBox = context.findRenderObject() as RenderBox?;
-    if (renderBox == null) return null;
-
-    final size = renderBox.size;
-    final centerX = size.width / 2;
-    final centerY = size.height / 2;
-
-    // Check each node to see if the tap position is within its bounds
-    for (final node in _graphData!.nodes) {
-      // Skip if in local graph mode and node isn't highlighted
-      if (_showLocalGraph && !_highlightedNodeIds.contains(node.id)) {
-        continue;
-      }
-
-      final nodeCenter = Offset(centerX + node.x, centerY + node.y);
-      final distance = (transformedPosition - nodeCenter).distance;
-
-      // Calculate node size (same logic as in GraphPainter)
-      final baseSize = 20.0;
-      final sizeMultiplier = 1.0 + (node.connectionCount * 0.2);
-      final nodeSize = baseSize * sizeMultiplier.clamp(1.0, 3.0);
-
-      if (distance <= nodeSize) {
-        return node.id;
-      }
+    // Input validation
+    if (!GraphCoordinateSystem.validateGestureInput(
+      position,
+      'getNodeAtPosition',
+    )) {
+      debugPrint('GraphViewScreen._getNodeAtPosition: Invalid position input');
+      return null;
     }
 
-    return null;
+    // Validate graph data
+    if (_graphData == null) {
+      debugPrint('GraphViewScreen._getNodeAtPosition: No graph data available');
+      return null;
+    }
+
+    if (_graphData!.nodes.isEmpty) {
+      debugPrint('GraphViewScreen._getNodeAtPosition: No nodes in graph data');
+      return null;
+    }
+
+    try {
+      // Get the current render box to determine canvas size
+      final RenderBox? renderBox = context.findRenderObject() as RenderBox?;
+      if (renderBox == null) {
+        debugPrint(
+          'GraphViewScreen._getNodeAtPosition: Unable to get render box',
+        );
+        return null;
+      }
+
+      final canvasSize = renderBox.size;
+
+      // Validate canvas size
+      if (canvasSize.width <= 0 || canvasSize.height <= 0) {
+        debugPrint(
+          'GraphViewScreen._getNodeAtPosition: Invalid canvas size: $canvasSize',
+        );
+        return null;
+      }
+
+      // Get the transformation matrix from the InteractiveViewer
+      final transformation = _transformationController.value;
+
+      // Validate transformation controller
+      if (!GraphCoordinateSystem.isValidTransformationMatrix(transformation)) {
+        debugPrint(
+          'GraphViewScreen._getNodeAtPosition: Invalid transformation matrix',
+        );
+        return null;
+      }
+
+      // Determine which nodes are visible (for local graph mode filtering)
+      final visibleNodeIds = _showLocalGraph ? _highlightedNodeIds : null;
+
+      // Validate visible node IDs if filtering is enabled
+      if (_showLocalGraph &&
+          (visibleNodeIds == null || visibleNodeIds.isEmpty)) {
+        debugPrint(
+          'GraphViewScreen._getNodeAtPosition: Local graph mode enabled but no visible nodes',
+        );
+        return null;
+      }
+
+      // Use the GraphCoordinateSystem utility to find the node at the position
+      return GraphCoordinateSystem.getNodeAtPosition(
+        position,
+        _graphData!,
+        transformation,
+        canvasSize,
+        visibleNodeIds: visibleNodeIds,
+      );
+    } catch (e) {
+      debugPrint(
+        'GraphViewScreen._getNodeAtPosition: Error finding node at position: $e',
+      );
+      return null;
+    }
   }
 
   Set<String> _getConnectedNodes(String nodeId, {int degrees = 1}) {
-    if (_graphData == null) return {};
+    // Input validation
+    if (!GraphCoordinateSystem.validateNodeId(nodeId, 'getConnectedNodes')) {
+      debugPrint(
+        'GraphViewScreen._getConnectedNodes: Invalid node ID: $nodeId',
+      );
+      return {};
+    }
 
-    final connected = <String>{nodeId};
-    final toProcess = <String>[nodeId];
-    final processed = <String>{};
+    if (degrees < 0) {
+      debugPrint(
+        'GraphViewScreen._getConnectedNodes: Invalid degrees: $degrees',
+      );
+      return {};
+    }
 
-    for (int d = 0; d < degrees; d++) {
-      final currentLevel = List<String>.from(toProcess);
-      toProcess.clear();
+    if (_graphData == null) {
+      debugPrint('GraphViewScreen._getConnectedNodes: No graph data available');
+      return {};
+    }
 
-      for (final currentId in currentLevel) {
-        if (processed.contains(currentId)) continue;
-        processed.add(currentId);
+    // Validate that the starting node exists
+    if (!_graphData!.nodes.any((node) => node.id == nodeId)) {
+      debugPrint(
+        'GraphViewScreen._getConnectedNodes: Starting node not found: $nodeId',
+      );
+      return {};
+    }
 
-        // Find outgoing edges
-        for (final edge in _graphData!.edges) {
-          if (edge.sourceId == currentId &&
-              !connected.contains(edge.targetId)) {
-            connected.add(edge.targetId);
-            toProcess.add(edge.targetId);
-          }
-          if (edge.targetId == currentId &&
-              !connected.contains(edge.sourceId)) {
-            connected.add(edge.sourceId);
-            toProcess.add(edge.sourceId);
+    try {
+      final connected = <String>{nodeId};
+      final toProcess = <String>[nodeId];
+      final processed = <String>{};
+
+      for (int d = 0; d < degrees; d++) {
+        final currentLevel = List<String>.from(toProcess);
+        toProcess.clear();
+
+        for (final currentId in currentLevel) {
+          if (processed.contains(currentId)) continue;
+          processed.add(currentId);
+
+          // Find outgoing edges
+          for (final edge in _graphData!.edges) {
+            // Validate edge data
+            if (edge.sourceId.isEmpty || edge.targetId.isEmpty) {
+              debugPrint(
+                'GraphViewScreen._getConnectedNodes: Found edge with empty ID, skipping',
+              );
+              continue;
+            }
+
+            if (edge.sourceId == currentId &&
+                !connected.contains(edge.targetId)) {
+              connected.add(edge.targetId);
+              toProcess.add(edge.targetId);
+            }
+            if (edge.targetId == currentId &&
+                !connected.contains(edge.sourceId)) {
+              connected.add(edge.sourceId);
+              toProcess.add(edge.sourceId);
+            }
           }
         }
       }
-    }
 
-    return connected;
+      return connected;
+    } catch (e) {
+      debugPrint(
+        'GraphViewScreen._getConnectedNodes: Error finding connected nodes: $e',
+      );
+      return {};
+    }
   }
 
   void _applySearchFilter(String query) {
-    setState(() {
-      _searchQuery = query.toLowerCase();
-      if (_searchQuery.isEmpty) {
-        _highlightedNodeIds.clear();
-      } else {
-        _highlightedNodeIds =
-            _graphData?.nodes
-                .where(
-                  (node) =>
-                      node.title.toLowerCase().contains(_searchQuery) ||
-                      node.tags.any(
-                        (tag) => tag.toLowerCase().contains(_searchQuery),
-                      ),
-                )
-                .map((node) => node.id)
-                .toSet() ??
-            {};
-      }
-    });
+    // Input validation
+    if (query.length > 1000) {
+      debugPrint(
+        'GraphViewScreen._applySearchFilter: Query too long, truncating',
+      );
+      query = query.substring(0, 1000);
+    }
+
+    try {
+      setState(() {
+        _searchQuery = query.toLowerCase();
+        if (_searchQuery.isEmpty) {
+          _highlightedNodeIds.clear();
+        } else {
+          if (_graphData == null) {
+            debugPrint(
+              'GraphViewScreen._applySearchFilter: No graph data available',
+            );
+            _highlightedNodeIds.clear();
+            return;
+          }
+
+          _highlightedNodeIds =
+              _graphData!.nodes
+                  .where((node) {
+                    // Validate node data
+                    if (node.id.isEmpty) {
+                      debugPrint(
+                        'GraphViewScreen._applySearchFilter: Found node with empty ID, skipping',
+                      );
+                      return false;
+                    }
+
+                    try {
+                      return node.title.toLowerCase().contains(_searchQuery) ||
+                          node.tags.any(
+                            (tag) => tag.toLowerCase().contains(_searchQuery),
+                          );
+                    } catch (e) {
+                      debugPrint(
+                        'GraphViewScreen._applySearchFilter: Error filtering node ${node.id}: $e',
+                      );
+                      return false;
+                    }
+                  })
+                  .map((node) => node.id)
+                  .toSet();
+        }
+      });
+    } catch (e) {
+      debugPrint(
+        'GraphViewScreen._applySearchFilter: Error applying search filter: $e',
+      );
+    }
   }
 
   void _toggleGraphMode() {
-    setState(() {
-      _showLocalGraph = !_showLocalGraph;
-      if (_showLocalGraph && _selectedNodeId != null) {
-        _highlightedNodeIds = _getConnectedNodes(_selectedNodeId!, degrees: 2);
-      } else {
-        _highlightedNodeIds.clear();
-      }
-    });
+    try {
+      setState(() {
+        _showLocalGraph = !_showLocalGraph;
+        if (_showLocalGraph && _selectedNodeId != null) {
+          // Validate selected node ID before getting connections
+          if (GraphCoordinateSystem.validateNodeId(
+            _selectedNodeId!,
+            'toggleGraphMode',
+          )) {
+            _highlightedNodeIds = _getConnectedNodes(
+              _selectedNodeId!,
+              degrees: 2,
+            );
+          } else {
+            debugPrint(
+              'GraphViewScreen._toggleGraphMode: Invalid selected node ID: $_selectedNodeId',
+            );
+            _highlightedNodeIds.clear();
+            _selectedNodeId = null;
+          }
+        } else {
+          _highlightedNodeIds.clear();
+        }
+      });
+    } catch (e) {
+      debugPrint(
+        'GraphViewScreen._toggleGraphMode: Error toggling graph mode: $e',
+      );
+    }
   }
 
   @override
@@ -414,8 +741,9 @@ class _GraphViewScreenState extends State<GraphViewScreen>
       minScale: 0.1,
       maxScale: 4.0,
       child: GestureDetector(
-        onTapUp: (details) => _handleTapUp(details),
-        onDoubleTapDown: (details) => _handleDoubleTap(details),
+        onTapUp: _handleTap,
+        onDoubleTap: _handleDoubleTap,
+        onDoubleTapDown: _handleDoubleTapDown,
         child: CustomPaint(
           painter: GraphPainter(
             graphData: _graphData!,

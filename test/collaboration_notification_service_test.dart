@@ -1,7 +1,15 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:noteassista/services/collaboration_notification_service.dart';
+import 'test_helpers.dart';
 
 void main() {
+  setUpAll(() async {
+    await setupFirebaseAuthMocks();
+  });
+
+  tearDownAll(() {
+    tearDownFirebaseAuthMocks();
+  });
   group('CollaborationNotificationService Tests', () {
     late CollaborationNotificationService notificationService;
 

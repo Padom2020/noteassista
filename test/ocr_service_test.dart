@@ -115,10 +115,13 @@ void main() {
         expect(() => OCRService(), returnsNormally);
       });
 
-      test('OCRService isAvailable returns true', () async {
-        final available = await service.isAvailable();
-        expect(available, isTrue);
-      });
+      test(
+        'OCRService isAvailable returns false (temporarily disabled)',
+        () async {
+          final available = await service.isAvailable();
+          expect(available, isFalse);
+        },
+      );
 
       test('Multiple OCRService instances can coexist', () {
         final service1 = OCRService();

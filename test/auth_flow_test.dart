@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:noteassista/firebase_options.dart';
 import 'package:noteassista/screens/auth_wrapper.dart';
 import 'package:noteassista/screens/login_screen.dart';
 import 'package:noteassista/screens/home_screen.dart';
@@ -10,33 +9,24 @@ import 'package:noteassista/screens/add_note_screen.dart';
 import 'package:noteassista/screens/edit_note_screen.dart';
 import 'package:noteassista/services/firestore_service.dart';
 import 'package:noteassista/models/note_model.dart';
+import 'test_helpers.dart';
 
 void main() {
   // Setup Firebase for testing
   setUpAll(() async {
-    TestWidgetsFlutterBinding.ensureInitialized();
+    await setupFirebaseAuthMocks();
   });
 
   // Clean up after each test
-  tearDown(() async {
-    try {
-      final auth = FirebaseAuth.instance;
-      if (auth.currentUser != null) {
-        await auth.signOut();
-      }
-    } catch (e) {
-      debugPrint('Error during teardown: $e');
-    }
+  tearDownAll(() {
+    tearDownFirebaseAuthMocks();
   });
 
   group('Authentication Flow Tests', () {
     testWidgets('Signup → Auto-login → HomeScreen navigation', (
       WidgetTester tester,
     ) async {
-      // Initialize Firebase for this test
-      await Firebase.initializeApp(
-        options: DefaultFirebaseOptions.currentPlatform,
-      );
+      // Firebase is already initialized in setUpAll
 
       // Build the app
       await tester.pumpWidget(
@@ -98,15 +88,7 @@ void main() {
     });
 
     testWidgets('Login with valid credentials', (WidgetTester tester) async {
-      // Initialize Firebase for this test
-      try {
-        await Firebase.initializeApp(
-          options: DefaultFirebaseOptions.currentPlatform,
-        );
-      } catch (e) {
-        // Firebase already initialized
-        debugPrint('Firebase already initialized: $e');
-      }
+      // Firebase is already initialized in setUpAll
 
       // First, create a test user
       final timestamp = DateTime.now().millisecondsSinceEpoch;
@@ -168,15 +150,7 @@ void main() {
     testWidgets('Login with invalid credentials shows error', (
       WidgetTester tester,
     ) async {
-      // Initialize Firebase for this test
-      try {
-        await Firebase.initializeApp(
-          options: DefaultFirebaseOptions.currentPlatform,
-        );
-      } catch (e) {
-        // Firebase already initialized
-        debugPrint('Firebase already initialized: $e');
-      }
+      // Firebase is already initialized in setUpAll
 
       // Build the app
       await tester.pumpWidget(
@@ -233,13 +207,7 @@ void main() {
 
     // Helper function to create a test user and login
     Future<void> setupTestUser(WidgetTester tester) async {
-      try {
-        await Firebase.initializeApp(
-          options: DefaultFirebaseOptions.currentPlatform,
-        );
-      } catch (e) {
-        debugPrint('Firebase already initialized: $e');
-      }
+      // Firebase is already initialized in setUpAll
 
       // Create test user
       final timestamp = DateTime.now().millisecondsSinceEpoch;
