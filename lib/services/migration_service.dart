@@ -1,13 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
-import '../models/folder_model.dart';
-import 'firestore_service.dart';
 
 /// Service to handle data migration for existing users
 /// This service adds new fields to existing notes and creates default collections
 class MigrationService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirestoreService _firestoreService = FirestoreService();
 
   /// Run all migrations for a user
   /// This is the main entry point for migration
@@ -187,44 +184,6 @@ class MigrationService {
       // Skip folder creation during migration - let user create them when needed
       debugPrint('Skipping default folder creation during migration');
       return result;
-
-      // Create default folders
-      final defaultFolders = [
-        FolderModel(
-          id: '',
-          name: 'Personal',
-          color: '#2196F3', // Blue
-          noteCount: 0,
-          isFavorite: false,
-        ),
-        FolderModel(
-          id: '',
-          name: 'Work',
-          color: '#4CAF50', // Green
-          noteCount: 0,
-          isFavorite: false,
-        ),
-        FolderModel(
-          id: '',
-          name: 'Ideas',
-          color: '#FFC107', // Amber
-          noteCount: 0,
-          isFavorite: false,
-        ),
-      ];
-
-      for (final folder in defaultFolders) {
-        try {
-          await _firestoreService.createFolder(userId, folder);
-          result.foldersCreated++;
-          debugPrint('Created default folder: ${folder.name}');
-        } catch (e) {
-          debugPrint('Error creating folder ${folder.name}: $e');
-          result.errors.add('Folder ${folder.name}: $e');
-        }
-      }
-
-      debugPrint('Created ${result.foldersCreated} default folders');
     } catch (e) {
       debugPrint('Error in _createDefaultFolders: $e');
       result.errors.add('Failed to create default folders: $e');
@@ -258,20 +217,6 @@ class MigrationService {
       // Skip template creation during migration - let user create them when needed
       debugPrint('Skipping default template creation during migration');
       return result;
-
-      // Use the FirestoreService method to create predefined templates
-      await _firestoreService.createPredefinedTemplates(userId);
-
-      // Count the created templates
-      final templatesSnapshot =
-          await _firestore
-              .collection('users')
-              .doc(userId)
-              .collection('templates')
-              .get();
-
-      result.templatesCreated = templatesSnapshot.docs.length;
-      debugPrint('Created ${result.templatesCreated} default templates');
     } catch (e) {
       debugPrint('Error in _createDefaultTemplates: $e');
       result.errors.add('Failed to create default templates: $e');

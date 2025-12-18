@@ -1,4 +1,3 @@
-import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_core_platform_interface/firebase_core_platform_interface.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -58,35 +57,43 @@ Future<void> setupFirebaseAuthMocks() async {
   FirebasePlatform.instance = MockFirebasePlatform();
 
   // Mock Firebase Auth
-  const MethodChannel(
-    'plugins.flutter.io/firebase_auth',
-  ).setMockMethodCallHandler((methodCall) async {
-    if (methodCall.method == 'Auth#registerIdTokenListener') {
-      return {'name': '[DEFAULT]'};
-    }
-    if (methodCall.method == 'Auth#registerAuthStateListener') {
-      return {'name': '[DEFAULT]'};
-    }
-    if (methodCall.method == 'Auth#currentUser') {
-      return null;
-    }
-    return null;
-  });
+  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+      .setMockMethodCallHandler(
+        const MethodChannel('plugins.flutter.io/firebase_auth'),
+        (methodCall) async {
+          if (methodCall.method == 'Auth#registerIdTokenListener') {
+            return {'name': '[DEFAULT]'};
+          }
+          if (methodCall.method == 'Auth#registerAuthStateListener') {
+            return {'name': '[DEFAULT]'};
+          }
+          if (methodCall.method == 'Auth#currentUser') {
+            return null;
+          }
+          return null;
+        },
+      );
 
   // Mock Firestore
-  const MethodChannel(
-    'plugins.flutter.io/cloud_firestore',
-  ).setMockMethodCallHandler((methodCall) async {
-    return null;
-  });
+  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+      .setMockMethodCallHandler(
+        const MethodChannel('plugins.flutter.io/cloud_firestore'),
+        (methodCall) async {
+          return null;
+        },
+      );
 }
 
 /// Cleans up Firebase mocks after testing
 void tearDownFirebaseAuthMocks() {
-  const MethodChannel(
-    'plugins.flutter.io/firebase_auth',
-  ).setMockMethodCallHandler(null);
-  const MethodChannel(
-    'plugins.flutter.io/cloud_firestore',
-  ).setMockMethodCallHandler(null);
+  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+      .setMockMethodCallHandler(
+        const MethodChannel('plugins.flutter.io/firebase_auth'),
+        null,
+      );
+  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+      .setMockMethodCallHandler(
+        const MethodChannel('plugins.flutter.io/cloud_firestore'),
+        null,
+      );
 }
