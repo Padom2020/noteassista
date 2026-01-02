@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 class TemplateVariable {
   final String name;
   final String placeholder;
@@ -52,30 +50,9 @@ class TemplateModel {
       'content': content,
       'variables': variables.map((v) => v.toMap()).toList(),
       'usageCount': usageCount,
-      'createdAt': Timestamp.fromDate(createdAt),
+      'createdAt': createdAt.toIso8601String(),
       'isCustom': isCustom,
     };
-  }
-
-  factory TemplateModel.fromFirestore(DocumentSnapshot doc) {
-    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-    return TemplateModel(
-      id: doc.id,
-      name: data['name'] ?? '',
-      description: data['description'] ?? '',
-      content: data['content'] ?? '',
-      variables:
-          (data['variables'] as List<dynamic>?)
-              ?.map((v) => TemplateVariable.fromMap(v as Map<String, dynamic>))
-              .toList() ??
-          [],
-      usageCount: data['usageCount'] ?? 0,
-      createdAt:
-          data['createdAt'] != null
-              ? (data['createdAt'] as Timestamp).toDate()
-              : DateTime.now(),
-      isCustom: data['isCustom'] ?? false,
-    );
   }
 
   TemplateModel copyWith({

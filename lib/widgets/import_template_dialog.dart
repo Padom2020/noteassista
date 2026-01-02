@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 // import 'package:file_picker/file_picker.dart'; // Removed due to Gradle compatibility issues
-import '../services/auth_service.dart';
-import '../services/firestore_service.dart';
+import '../services/supabase_service.dart';
 
 class ImportTemplateDialog extends StatefulWidget {
   final VoidCallback? onImportSuccess;
@@ -14,8 +13,7 @@ class ImportTemplateDialog extends StatefulWidget {
 }
 
 class _ImportTemplateDialogState extends State<ImportTemplateDialog> {
-  final AuthService _authService = AuthService();
-  final FirestoreService _firestoreService = FirestoreService();
+  final SupabaseService _supabaseService = SupabaseService.instance;
   final TextEditingController _jsonController = TextEditingController();
 
   bool _isImporting = false;
@@ -74,30 +72,13 @@ class _ImportTemplateDialogState extends State<ImportTemplateDialog> {
       return;
     }
 
-    try {
-      _firestoreService.validateImportedTemplate(jsonString);
-      setState(() {
-        _validationError = null;
-      });
-    } catch (e) {
-      setState(() {
-        _validationError = e.toString();
-      });
-    }
+    final result = _supabaseService.validateImportedTemplate(jsonString);
+    setState(() {
+      _validationError = result.success ? null : result.error;
+    });
   }
 
   Future<void> _importTemplate() async {
-    final userId = _authService.currentUser?.uid;
-    if (userId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please log in to import templates'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
     final jsonString = _jsonController.text.trim();
     if (jsonString.isEmpty) {
       setState(() {
@@ -111,18 +92,24 @@ class _ImportTemplateDialogState extends State<ImportTemplateDialog> {
     });
 
     try {
-      await _firestoreService.importTemplate(userId, jsonString);
+      final result = await _supabaseService.importTemplate(jsonString);
 
       if (mounted) {
-        Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Template imported successfully'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        if (result.success) {
+          Navigator.of(context).pop();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Template imported successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
 
-        widget.onImportSuccess?.call();
+          widget.onImportSuccess?.call();
+        } else {
+          setState(() {
+            _validationError = result.error;
+          });
+        }
       }
     } catch (e) {
       if (mounted) {

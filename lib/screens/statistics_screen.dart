@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/statistics_service.dart';
+import '../services/supabase_service.dart';
 import '../models/statistics_model.dart';
 import '../models/note_model.dart';
 import '../widgets/feature_tooltip.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:math' as math;
 import 'package:screenshot/screenshot.dart';
 import 'package:pdf/pdf.dart';
@@ -22,7 +22,7 @@ class StatisticsScreen extends StatefulWidget {
 
 class _StatisticsScreenState extends State<StatisticsScreen> {
   final StatisticsService _statisticsService = StatisticsService();
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final SupabaseService _supabaseService = SupabaseService.instance;
   final ScreenshotController _screenshotController = ScreenshotController();
   bool _isLoading = true;
   bool _isExporting = false;
@@ -44,42 +44,26 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     });
 
     try {
-      final user = FirebaseAuth.instance.currentUser;
+      final user = Supabase.instance.client.auth.currentUser;
       if (user == null) {
         throw Exception('User not authenticated');
       }
 
       // Calculate statistics
-      final stats = await _statisticsService.calculateStatistics(user.uid);
+      final stats = await _statisticsService.calculateStatistics(user.id);
 
-      // Get recent notes
-      final notesSnapshot =
-          await _firestore
-              .collection('users')
-              .doc(user.uid)
-              .collection('notes')
-              .orderBy('updatedAt', descending: true)
-              .limit(5)
-              .get();
+      // Get recent notes from SupabaseService
+      final notesResult = await _supabaseService.getAllNotes();
+      if (!notesResult.success || notesResult.data == null) {
+        throw Exception('Failed to load notes');
+      }
 
-      final recentNotes =
-          notesSnapshot.docs
-              .map((doc) => NoteModel.fromFirestore(doc))
-              .toList();
+      final allNotes = notesResult.data!;
+
+      // Get recent notes (last 5)
+      final recentNotes = allNotes.take(5).toList();
 
       // Get longest note
-      final allNotesSnapshot =
-          await _firestore
-              .collection('users')
-              .doc(user.uid)
-              .collection('notes')
-              .get();
-
-      final allNotes =
-          allNotesSnapshot.docs
-              .map((doc) => NoteModel.fromFirestore(doc))
-              .toList();
-
       NoteModel? longestNote;
       if (allNotes.isNotEmpty) {
         longestNote = allNotes.reduce(

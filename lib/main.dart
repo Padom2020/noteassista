@@ -1,26 +1,47 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import 'dart:async';
-import 'firebase_options.dart';
 import 'screens/splash_screen.dart';
 import 'screens/web_clipper_screen.dart';
-import 'screens/edit_note_screen.dart';
 import 'screens/whats_new_screen.dart';
+import 'screens/edit_note_screen.dart';
 import 'services/reminder_service.dart';
-import 'services/firestore_service.dart';
 import 'services/auth_service.dart';
+import 'services/supabase_service.dart';
 import 'services/onboarding_service.dart';
-import 'models/note_model.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // Initialize Supabase
+  try {
+    debugPrint('Initializing Supabase...');
+    await Supabase.initialize(
+      url: 'https://paaflxwwpasdzpvlbdlc.supabase.co',
+      anonKey:
+          'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBhYWZseHd3cGFzZHpwdmxiZGxjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYzODgzMzgsImV4cCI6MjA4MTk2NDMzOH0.WLLfyGdXALTPc0iS24UeMIheWjbL4GVBwg8pvUeaLYo',
+    );
+    debugPrint('Supabase initialized successfully');
+
+    // Initialize database schema
+    debugPrint('Initializing database schema...');
+    await SupabaseService.initializeSchema();
+  } catch (e) {
+    debugPrint('Supabase initialization failed: $e');
+    // Continue app execution even if Supabase fails
+  }
 
   // Initialize reminder service
   final reminderService = ReminderService();
-  await reminderService.initialize();
+  try {
+    await reminderService.initialize();
+    debugPrint('Reminder service initialized successfully');
+  } catch (e) {
+    debugPrint('Reminder service initialization failed: $e');
+    // Continue app execution even if reminder service fails
+  }
 
   runApp(MyApp(reminderService: reminderService));
 }
@@ -105,37 +126,12 @@ class _MyAppState extends State<MyApp> {
         final authService = AuthService();
         final user = authService.currentUser;
         if (user != null) {
-          final firestoreService = FirestoreService();
-          final note = await firestoreService.getNoteById(user.uid, noteId);
-          if (note != null) {
-            // Create updated note with isDone set to true
-            final updatedNote = NoteModel(
-              id: note.id,
-              title: note.title,
-              description: note.description,
-              timestamp: note.timestamp,
-              categoryImageIndex: note.categoryImageIndex,
-              isDone: true,
-              customImageUrl: note.customImageUrl,
-              isPinned: note.isPinned,
-              tags: note.tags,
-              createdAt: note.createdAt,
-              updatedAt: DateTime.now(),
-              outgoingLinks: note.outgoingLinks,
-              audioUrls: note.audioUrls,
-              imageUrls: note.imageUrls,
-              drawingUrls: note.drawingUrls,
-              folderId: note.folderId,
-              isShared: note.isShared,
-              collaboratorIds: note.collaboratorIds,
-              collaborators: note.collaborators,
-              sourceUrl: note.sourceUrl,
-              reminder: note.reminder,
-              viewCount: note.viewCount,
-              wordCount: note.wordCount,
-              ownerId: note.ownerId,
-            );
-            await firestoreService.updateNote(user.uid, noteId, updatedNote);
+          // Update note status using SupabaseService
+          final supabaseService = SupabaseService.instance;
+          final result = await supabaseService.toggleNoteStatus(noteId, true);
+
+          if (!result.success) {
+            throw Exception(result.error ?? 'Failed to update note status');
           }
         }
 
@@ -161,33 +157,38 @@ class _MyAppState extends State<MyApp> {
 
   /// Navigate to the note edit screen
   void _navigateToNote(String noteId) async {
-    // Capture context before async operations
-    final context = _navigatorKey.currentContext;
-    final scaffoldMessenger =
-        context != null ? ScaffoldMessenger.of(context) : null;
-
     try {
       final authService = AuthService();
       final user = authService.currentUser;
       if (user != null) {
-        final firestoreService = FirestoreService();
-        final note = await firestoreService.getNoteById(user.uid, noteId);
-        if (note != null) {
-          Future.delayed(const Duration(milliseconds: 500), () {
+        // Get note details using SupabaseService and navigate to edit screen
+        final supabaseService = SupabaseService.instance;
+        final result = await supabaseService.getNoteById(noteId);
+
+        if (result.success && result.data != null) {
+          final note = result.data!;
+
+          // Navigate to edit note screen using MaterialPageRoute
+          if (mounted) {
             _navigatorKey.currentState?.push(
               MaterialPageRoute(
                 builder: (context) => EditNoteScreen(note: note),
               ),
             );
-          });
+          }
+        } else {
+          throw Exception(result.error ?? 'Note not found');
         }
       }
     } catch (e) {
       // Show error snackbar
-      if (scaffoldMessenger != null && mounted) {
-        scaffoldMessenger.showSnackBar(
-          SnackBar(content: Text('Error opening note: $e')),
-        );
+      if (mounted) {
+        final context = _navigatorKey.currentContext;
+        if (context != null) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Error opening note: $e')));
+        }
       }
     }
   }
@@ -234,7 +235,7 @@ class _MyAppState extends State<MyApp> {
   void _handleSharedText(String text) {
     // Check if the text is a URL
     final urlPattern = RegExp(
-      r'^https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)$',
+      r'^https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)',
     );
 
     if (urlPattern.hasMatch(text)) {
@@ -248,12 +249,10 @@ class _MyAppState extends State<MyApp> {
       });
     } else {
       // If not a URL, show a message
-      final context = _navigatorKey.currentContext;
-      final scaffoldMessenger =
-          context != null ? ScaffoldMessenger.of(context) : null;
       Future.delayed(const Duration(milliseconds: 500), () {
-        if (scaffoldMessenger != null) {
-          scaffoldMessenger.showSnackBar(
+        final context = _navigatorKey.currentContext;
+        if (context != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Please share a valid URL')),
           );
         }

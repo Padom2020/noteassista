@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../services/auth_service.dart';
-import '../services/firestore_service.dart';
+import '../services/supabase_service.dart';
 import '../services/image_upload_service.dart';
 import '../services/ai_tagging_service.dart';
 import '../services/voice_service.dart';
@@ -38,7 +38,7 @@ class _AddNoteScreenState extends State<AddNoteScreen> {
   final _descriptionController = TextEditingController();
   final _tagsController = TextEditingController();
   final AuthService _authService = AuthService();
-  final FirestoreService _firestoreService = FirestoreService();
+  final SupabaseService _supabaseService = SupabaseService.instance;
   final ImageUploadService _imageUploadService = ImageUploadService();
   final AITaggingService _aiTaggingService = AITaggingService();
   final VoiceService _voiceService = VoiceService();
@@ -85,10 +85,10 @@ class _AddNoteScreenState extends State<AddNoteScreen> {
     final userId = _authService.currentUser?.uid;
     if (userId != null) {
       try {
-        final folders = await _firestoreService.getFolders(userId);
-        if (mounted) {
+        final result = await _supabaseService.getFolders();
+        if (mounted && result.success && result.data != null) {
           setState(() {
-            _folders = folders;
+            _folders = result.data!;
           });
         }
       } catch (e) {
@@ -142,9 +142,7 @@ class _AddNoteScreenState extends State<AddNoteScreen> {
 
     try {
       final suggestions = await _aiTaggingService.generateTagSuggestions(
-        userId,
-        title,
-        description,
+        '$title $description',
       );
 
       // Filter out tags that are already added
@@ -184,7 +182,6 @@ class _AddNoteScreenState extends State<AddNoteScreen> {
     final userId = _authService.currentUser?.uid;
     if (userId != null) {
       _aiTaggingService.recordTagAcceptance(
-        userId,
         normalizedTag,
         '${_titleController.text} ${_descriptionController.text}',
       );
@@ -323,6 +320,14 @@ class _AddNoteScreenState extends State<AddNoteScreen> {
 
     // Get current user
     final userId = _authService.currentUser?.uid;
+    debugPrint('AddNoteScreen: AuthService user ID: $userId');
+    debugPrint(
+      'AddNoteScreen: SupabaseService authenticated: ${_supabaseService.isAuthenticated}',
+    );
+    debugPrint(
+      'AddNoteScreen: SupabaseService user ID: ${_supabaseService.currentUserId}',
+    );
+
     if (userId == null) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -405,8 +410,11 @@ class _AddNoteScreenState extends State<AddNoteScreen> {
         ownerId: userId, // Set the owner
       );
 
-      // Save to Firestore
-      await _firestoreService.createNote(userId, note);
+      // Save to Supabase
+      final result = await _supabaseService.createNote(note);
+      if (!result.success) {
+        throw Exception(result.error ?? 'Failed to create note');
+      }
 
       // Navigate back to HomeScreen
       if (mounted) {
@@ -826,10 +834,9 @@ class _AddNoteScreenState extends State<AddNoteScreen> {
     // Increment template usage count
     final userId = _authService.currentUser?.uid;
     if (userId != null) {
-      _firestoreService.incrementTemplateUsage(userId, template.id).catchError((
-        e,
-      ) {
+      _supabaseService.incrementTemplateUsage(template.id).catchError((e) {
         // Handle error silently - usage count update is not critical
+        return SupabaseOperationResult.failure('Template usage update failed');
       });
     }
 
@@ -880,7 +887,7 @@ class _AddNoteScreenState extends State<AddNoteScreen> {
             onSave: (template) async {
               final scaffoldMessenger = ScaffoldMessenger.of(context);
               try {
-                await _firestoreService.createTemplate(userId, template);
+                await _supabaseService.createTemplate(template);
 
                 if (mounted) {
                   scaffoldMessenger.showSnackBar(

@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import '../models/folder_model.dart';
 import '../models/note_model.dart';
-import '../services/auth_service.dart';
-import '../services/firestore_service.dart';
+import '../services/supabase_service.dart';
 import 'rename_folder_dialog.dart';
 
 /// A widget that displays folders in a hierarchical tree structure
@@ -26,16 +25,13 @@ class FolderTreeView extends StatefulWidget {
 }
 
 class _FolderTreeViewState extends State<FolderTreeView> {
-  final AuthService _authService = AuthService();
-  final FirestoreService _firestoreService = FirestoreService();
+  final SupabaseService _supabaseService = SupabaseService.instance;
   final Set<String> _expandedFolders = {};
 
   @override
   Widget build(BuildContext context) {
-    final userId = _authService.currentUser?.uid ?? '';
-
-    return StreamBuilder(
-      stream: _firestoreService.streamFolders(userId),
+    return StreamBuilder<List<FolderModel>>(
+      stream: _supabaseService.streamFolders(),
       builder: (context, snapshot) {
         // Loading state
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -61,7 +57,7 @@ class _FolderTreeViewState extends State<FolderTreeView> {
         }
 
         // Empty state
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
           return Center(
             child: Padding(
               padding: const EdgeInsets.all(20.0),
@@ -94,10 +90,7 @@ class _FolderTreeViewState extends State<FolderTreeView> {
         }
 
         // Build folder tree
-        final folders =
-            snapshot.data!.docs
-                .map((doc) => FolderModel.fromFirestore(doc))
-                .toList();
+        final folders = snapshot.data!;
 
         // Build hierarchical structure
         final rootFolders = _buildFolderHierarchy(folders);
@@ -244,19 +237,16 @@ class _FolderListTileState extends State<FolderListTile> {
       },
       onAcceptWithDetails: (details) async {
         final note = details.data;
-        final authService = AuthService();
-        final firestoreService = FirestoreService();
-        final userId = authService.currentUser?.uid;
+        final supabaseService = SupabaseService.instance;
 
-        if (userId != null) {
-          try {
-            await firestoreService.moveNoteToFolder(
-              userId,
-              note.id,
-              widget.folder?.id,
-            );
+        try {
+          final result = await supabaseService.moveNoteToFolder(
+            note.id,
+            widget.folder?.id,
+          );
 
-            if (context.mounted) {
+          if (context.mounted) {
+            if (result.success) {
               final folderName =
                   widget.folder == null ? 'Root' : widget.folder!.name;
               ScaffoldMessenger.of(context).showSnackBar(
@@ -266,16 +256,23 @@ class _FolderListTileState extends State<FolderListTile> {
                   duration: const Duration(seconds: 2),
                 ),
               );
-            }
-          } catch (e) {
-            if (context.mounted) {
+            } else {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('Error moving note: $e'),
+                  content: Text('Error moving note: ${result.error}'),
                   backgroundColor: Colors.red,
                 ),
               );
             }
+          }
+        } catch (e) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Error moving note: $e'),
+                backgroundColor: Colors.red,
+              ),
+            );
           }
         }
 
@@ -434,8 +431,7 @@ class FolderMenuSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final authService = AuthService();
-    final firestoreService = FirestoreService();
+    final supabaseService = SupabaseService.instance;
 
     // Parse folder color
     Color folderColor;
@@ -516,7 +512,7 @@ class FolderMenuSheet extends StatelessWidget {
             title: 'Change Color',
             onTap: () async {
               Navigator.pop(context);
-              await _showColorPicker(context, authService, firestoreService);
+              await _showColorPicker(context, supabaseService);
             },
           ),
           _buildMenuItem(
@@ -528,7 +524,7 @@ class FolderMenuSheet extends StatelessWidget {
                     : 'Add to Favorites',
             onTap: () async {
               Navigator.pop(context);
-              await _toggleFavorite(context, authService, firestoreService);
+              await _toggleFavorite(context, supabaseService);
             },
           ),
           _buildMenuItem(
@@ -538,7 +534,7 @@ class FolderMenuSheet extends StatelessWidget {
             color: Colors.red,
             onTap: () async {
               Navigator.pop(context);
-              await _deleteFolder(context, authService, firestoreService);
+              await _deleteFolder(context, supabaseService);
             },
           ),
         ],
@@ -562,8 +558,7 @@ class FolderMenuSheet extends StatelessWidget {
 
   Future<void> _showColorPicker(
     BuildContext context,
-    AuthService authService,
-    FirestoreService firestoreService,
+    SupabaseService supabaseService,
   ) async {
     Color selectedColor;
     try {
@@ -582,34 +577,41 @@ class FolderMenuSheet extends StatelessWidget {
             child: BlockPicker(
               pickerColor: selectedColor,
               onColorChanged: (color) async {
-                final userId = authService.currentUser?.uid;
-                if (userId != null) {
-                  try {
-                    final colorHex =
-                        '#${color.toARGB32().toRadixString(16).substring(2)}';
-                    await firestoreService.updateFolderColor(
-                      userId,
-                      folder.id,
-                      colorHex,
-                    );
-                    if (context.mounted) {
-                      Navigator.of(context).pop();
+                try {
+                  final colorHex =
+                      '#${color.toARGB32().toRadixString(16).substring(2)}';
+                  final result = await supabaseService.updateFolderColor(
+                    folder.id,
+                    colorHex,
+                  );
+                  if (context.mounted) {
+                    Navigator.of(context).pop();
+                    if (result.success) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text('Folder color updated'),
                           backgroundColor: Colors.green,
                         ),
                       );
-                    }
-                  } catch (e) {
-                    if (context.mounted) {
+                    } else {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('Error updating color: $e'),
+                          content: Text(
+                            'Error updating color: ${result.error}',
+                          ),
                           backgroundColor: Colors.red,
                         ),
                       );
                     }
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Error updating color: $e'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
                   }
                 }
               },
@@ -643,29 +645,33 @@ class FolderMenuSheet extends StatelessWidget {
 
   Future<void> _toggleFavorite(
     BuildContext context,
-    AuthService authService,
-    FirestoreService firestoreService,
+    SupabaseService supabaseService,
   ) async {
-    final userId = authService.currentUser?.uid;
-    if (userId == null) return;
-
     try {
-      await firestoreService.toggleFolderFavorite(
-        userId,
+      final result = await supabaseService.toggleFolderFavorite(
         folder.id,
         !folder.isFavorite,
       );
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              folder.isFavorite
-                  ? 'Removed from favorites'
-                  : 'Added to favorites',
+        if (result.success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                folder.isFavorite
+                    ? 'Removed from favorites'
+                    : 'Added to favorites',
+              ),
+              backgroundColor: Colors.green,
             ),
-            backgroundColor: Colors.green,
-          ),
-        );
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error updating favorite: ${result.error}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     } catch (e) {
       if (context.mounted) {
@@ -681,8 +687,7 @@ class FolderMenuSheet extends StatelessWidget {
 
   Future<void> _deleteFolder(
     BuildContext context,
-    AuthService authService,
-    FirestoreService firestoreService,
+    SupabaseService supabaseService,
   ) async {
     // Show confirmation dialog
     final confirmed = await showDialog<bool>(
@@ -714,22 +719,27 @@ class FolderMenuSheet extends StatelessWidget {
 
     if (confirmed != true) return;
 
-    final userId = authService.currentUser?.uid;
-    if (userId == null) return;
-
     try {
-      await firestoreService.deleteFolder(
-        userId,
+      final result = await supabaseService.deleteFolder(
         folder.id,
         targetFolderId: folder.parentId, // Move to parent or root
       );
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Folder "${folder.name}" deleted'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        if (result.success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Folder "${folder.name}" deleted'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error deleting folder: ${result.error}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     } catch (e) {
       if (context.mounted) {

@@ -5,11 +5,11 @@ import 'test_helpers.dart';
 
 void main() {
   setUpAll(() async {
-    await setupFirebaseAuthMocks();
+    await setupSupabaseMocks();
   });
 
   tearDownAll(() {
-    tearDownFirebaseAuthMocks();
+    tearDownSupabaseMocks();
   });
   group('Graph Gesture Integration Tests', () {
     testWidgets('single tap vs double-tap distinction works correctly', (

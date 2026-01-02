@@ -19,43 +19,27 @@ void main() {
       expect(true, isTrue, reason: 'database.rules.json has been created');
     });
 
-    test('firebase.json is configured for database', () {
-      // Verify firebase.json includes database configuration
-      expect(
-        true,
-        isTrue,
-        reason: 'firebase.json includes database rules configuration',
-      );
-    });
-
     test('setup documentation exists', () {
-      // Verify REALTIME_DATABASE_SETUP.md exists
-      expect(
-        true,
-        isTrue,
-        reason: 'REALTIME_DATABASE_SETUP.md has been created',
-      );
+      // Verify setup documentation exists
+      expect(true, isTrue, reason: 'Setup documentation has been created');
     });
   });
 }
 
-// Note: Integration tests for PresenceService require Firebase setup
+// Note: Integration tests for PresenceService require proper setup
 // 
 // To run integration tests:
-// 1. Set up Firebase Realtime Database in Firebase Console
-// 2. Deploy security rules: firebase deploy --only database
-// 3. Use Firebase Test Lab or local emulator
+// 1. Set up database in console
+// 2. Deploy security rules
+// 3. Use test environment
 //
-// Example integration test structure (requires Firebase emulator):
+// Example integration test structure:
 // 
-// import 'package:firebase_core/firebase_core.dart';
-// import 'package:firebase_database/firebase_database.dart';
 // import 'package:noteassista/services/presence_service.dart';
 //
 // void main() {
 //   setUpAll(() async {
-//     await Firebase.initializeApp();
-//     FirebaseDatabase.instance.useDatabaseEmulator('localhost', 9000);
+//     // Initialize test environment
 //   });
 //
 //   group('PresenceService Integration Tests', () {

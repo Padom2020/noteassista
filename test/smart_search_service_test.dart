@@ -5,8 +5,8 @@ void main() {
   late SmartSearchService service;
 
   setUp(() {
-    // Create service without Firebase for unit testing pure methods
-    service = SmartSearchService(firestore: null);
+    // Create service for unit testing pure methods
+    service = SmartSearchService();
   });
 
   group('Natural Language Date Parsing Tests', () {

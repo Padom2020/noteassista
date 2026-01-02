@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
-import '../services/firestore_service.dart';
+import '../services/supabase_service.dart';
 import '../services/migration_service.dart';
 import '../services/onboarding_service.dart';
 import '../models/note_model.dart';
@@ -28,7 +28,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final AuthService _authService = AuthService();
-  final FirestoreService _firestoreService = FirestoreService();
+  final SupabaseService _supabaseService = SupabaseService.instance;
   final OnboardingService _onboardingService = OnboardingService();
   final ScrollController _scrollController = ScrollController();
   bool _isFabVisible = true;
@@ -236,7 +236,7 @@ class _HomeScreenState extends State<HomeScreen> {
         // Run migration in the background
         final result = await migrationService.runMigrations(userId);
 
-        if (result.success) {
+        if (result.isSuccess) {
           debugPrint('Migration completed successfully');
           debugPrint('Notes updated: ${result.notesUpdated}');
           debugPrint('Folders created: ${result.foldersCreated}');
@@ -284,13 +284,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadFolders() async {
-    final userId = _authService.currentUser?.uid;
-    if (userId != null) {
+    if (_supabaseService.isAuthenticated) {
       try {
-        final folders = await _firestoreService.getFolders(userId);
-        if (mounted) {
+        final result = await _supabaseService.getFolders();
+        if (result.success && mounted) {
           setState(() {
-            _folders = folders;
+            _folders = result.data ?? [];
           });
         }
       } catch (e) {
@@ -326,25 +325,24 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _deleteNote(String noteId) async {
-    final userId = _authService.currentUser?.uid ?? '';
     try {
-      await _firestoreService.deleteNote(userId, noteId);
+      final result = await _supabaseService.deleteNote(noteId);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Note deleted successfully'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } on Exception catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.toString().replaceFirst('Exception: ', '')),
-            backgroundColor: Colors.red,
-          ),
-        );
+        if (result.success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Note deleted successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result.error ?? 'Error deleting note'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -359,14 +357,15 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _toggleNoteStatus(String noteId, bool currentStatus) async {
-    final userId = _authService.currentUser?.uid ?? '';
     try {
-      await _firestoreService.toggleNoteStatus(userId, noteId, !currentStatus);
-    } on Exception catch (e) {
-      if (mounted) {
+      final result = await _supabaseService.toggleNoteStatus(
+        noteId,
+        !currentStatus,
+      );
+      if (mounted && !result.success) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(e.toString().replaceFirst('Exception: ', '')),
+            content: Text(result.error ?? 'Error updating note'),
             backgroundColor: Colors.red,
           ),
         );
@@ -630,9 +629,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildNotesStream(String userId, bool isDone, String emptyMessage) {
-    return StreamBuilder(
-      stream: _firestoreService.streamNotesByFolder(
-        userId,
+    return StreamBuilder<List<NoteModel>>(
+      stream: _supabaseService.streamNotesByFolder(
         _selectedFolderId,
         isDone: isDone,
       ),
@@ -661,7 +659,7 @@ class _HomeScreenState extends State<HomeScreen> {
         }
 
         // Empty state
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
           return Center(
             child: Padding(
               padding: EdgeInsets.all(20.0),
@@ -674,10 +672,7 @@ class _HomeScreenState extends State<HomeScreen> {
         }
 
         // Build note cards
-        final notes =
-            snapshot.data!.docs
-                .map((doc) => NoteModel.fromFirestore(doc))
-                .toList();
+        final notes = snapshot.data!;
 
         return Column(
           children: notes.map((note) => _buildNoteCard(note)).toList(),
@@ -895,8 +890,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final userId = _authService.currentUser?.uid ?? '';
-
     return Scaffold(
       appBar: AppBar(
         title: Container(
@@ -1082,7 +1075,7 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 16),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: _buildNotesStream(userId, false, 'No active notes yet'),
+            child: _buildNotesStream('', false, 'No active notes yet'),
           ),
           const SizedBox(height: 32),
 
@@ -1098,7 +1091,7 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 16),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
-            child: _buildNotesStream(userId, true, 'No completed notes yet'),
+            child: _buildNotesStream('', true, 'No completed notes yet'),
           ),
         ],
       ),

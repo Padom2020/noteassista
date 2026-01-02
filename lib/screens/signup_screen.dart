@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/auth_service.dart';
-import '../services/firestore_service.dart';
+import '../utils/error_handler.dart';
 import 'home_screen.dart';
 
 class SignupScreen extends StatefulWidget {
@@ -17,8 +17,49 @@ class _SignupScreenState extends State<SignupScreen> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _authService = AuthService();
-  final _firestoreService = FirestoreService();
   bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Listen to auth state changes
+    _authService.stateChanges.listen((event) {
+      if (!mounted) return;
+
+      switch (event.state) {
+        case AuthenticationState.authenticated:
+          if (event.user != null) {
+            ErrorHandler.logInfo(
+              'SignupScreen',
+              'User authenticated, navigating to home',
+            );
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (context) => const HomeScreen()),
+            );
+          }
+          break;
+        case AuthenticationState.error:
+          setState(() {
+            _isLoading = false;
+          });
+          if (event.error != null) {
+            ErrorHandler.showErrorSnackBar(context, event.error!);
+          }
+          break;
+        case AuthenticationState.loading:
+          setState(() {
+            _isLoading = true;
+          });
+          break;
+        default:
+          setState(() {
+            _isLoading = false;
+          });
+          break;
+      }
+    });
+  }
 
   @override
   void dispose() {
@@ -43,90 +84,50 @@ class _SignupScreenState extends State<SignupScreen> {
       return;
     }
 
-    setState(() {
-      _isLoading = true;
-    });
+    // Check if auth service is available
+    if (!_authService.isAvailable) {
+      ErrorHandler.showErrorSnackBar(
+        context,
+        'Authentication service is not available. Please check your internet connection.',
+      );
+      return;
+    }
 
     try {
-      // Create user account in Firebase Auth
-      final userCredential = await _authService.signUp(
+      // Clear any previous errors
+      _authService.clearLastError();
+
+      // Create user account in Supabase Auth
+      await _authService.signUp(
         _emailController.text.trim(),
         _passwordController.text,
       );
 
-      // Check if user was created successfully
-      if (userCredential.user != null) {
-        try {
-          // Create user document in Firestore
-          await _firestoreService.createUser(
-            userCredential.user!.uid,
-            userCredential.user!.email ?? '',
-          );
-        } on Exception catch (firestoreError) {
-          // Log Firestore error but continue - user is already created in Auth
-          debugPrint('Firestore error: $firestoreError');
-          // Show warning but still navigate
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  'Account created but profile setup incomplete: ${firestoreError.toString().replaceFirst('Exception: ', '')}',
-                ),
-                backgroundColor: Colors.orange,
-              ),
-            );
-          }
-        } catch (firestoreError) {
-          // Log Firestore error but continue - user is already created in Auth
-          debugPrint('Firestore error: $firestoreError');
-        }
-
-        // Navigate to HomeScreen after successful registration
-        if (mounted) {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (context) => const HomeScreen()),
-          );
-        }
-      }
-    } on FirebaseAuthException catch (e) {
-      // Only show error if user was NOT created
-      debugPrint('FirebaseAuthException: ${e.code} - ${e.message}');
-
-      String errorMessage;
-      switch (e.code) {
-        case 'weak-password':
-          errorMessage = 'Password should be at least 6 characters';
-          break;
-        case 'email-already-in-use':
-          errorMessage = 'An account already exists with this email';
-          break;
-        case 'invalid-email':
-          errorMessage = 'Please enter a valid email address';
-          break;
-        case 'network-request-failed':
-          errorMessage = 'Network error. Please check your connection';
-          break;
-        default:
-          errorMessage = 'Error: ${e.message ?? "Please try again"}';
-      }
-
+      // Navigation is handled by the auth state listener
+      ErrorHandler.logInfo('SignupScreen', 'Signup attempt completed');
+    } on AuthServiceException catch (e) {
+      ErrorHandler.logError(
+        'SignupScreen',
+        'AuthServiceException: ${e.message}',
+      );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(errorMessage), backgroundColor: Colors.red),
+        ErrorHandler.showErrorSnackBar(context, e.message);
+      }
+    } on AuthException catch (e) {
+      ErrorHandler.logError('SignupScreen', 'AuthException: ${e.message}');
+      if (mounted) {
+        ErrorHandler.showErrorSnackBar(
+          context,
+          ErrorHandler.getAuthErrorMessage(e.message),
         );
       }
     } catch (e) {
-      debugPrint('Unexpected error: $e');
+      ErrorHandler.logError('SignupScreen', 'Unexpected error during signup');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        ErrorHandler.showErrorSnackBar(
+          context,
+          'An unexpected error occurred during signup',
         );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
       }
     }
   }
@@ -161,6 +162,31 @@ class _SignupScreenState extends State<SignupScreen> {
                   ),
                 ),
                 const SizedBox(height: 40),
+
+                // Show warning if Supabase is not available
+                if (!_authService.isAvailable)
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade100,
+                      border: Border.all(color: Colors.orange),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.warning, color: Colors.orange),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Authentication service is offline. Please check your internet connection.',
+                            style: TextStyle(color: Colors.orange),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
                 TextFormField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,

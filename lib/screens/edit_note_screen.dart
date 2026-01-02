@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/auth_service.dart';
-import '../services/firestore_service.dart';
+import '../services/supabase_service.dart';
 import '../services/voice_service.dart';
 import '../services/link_management_service.dart';
 import '../services/collaboration_service.dart';
@@ -41,7 +41,7 @@ class _EditNoteScreenState extends State<EditNoteScreen> {
   late TextEditingController _titleController;
   late TextEditingController _descriptionController;
   final AuthService _authService = AuthService();
-  final FirestoreService _firestoreService = FirestoreService();
+  final SupabaseService _supabaseService = SupabaseService.instance;
   final VoiceService _voiceService = VoiceService();
   final LinkManagementService _linkService = LinkManagementService();
   final CollaborationService _collaborationService = CollaborationService();
@@ -125,9 +125,25 @@ class _EditNoteScreenState extends State<EditNoteScreen> {
           widget.note.ownerId!,
         );
 
+        // Convert string to enum
+        CollaboratorRole? roleEnum;
+        switch (userRole) {
+          case 'owner':
+            roleEnum = CollaboratorRole.owner;
+            break;
+          case 'editor':
+            roleEnum = CollaboratorRole.editor;
+            break;
+          case 'viewer':
+            roleEnum = CollaboratorRole.viewer;
+            break;
+          default:
+            roleEnum = null;
+        }
+
         setState(() {
           _canEdit = canEdit;
-          _userRole = userRole;
+          _userRole = roleEnum;
           _isCheckingPermissions = false;
         });
       } else {
@@ -254,7 +270,7 @@ class _EditNoteScreenState extends State<EditNoteScreen> {
 
   Future<void> _removeAudioUrl(String url) async {
     try {
-      // Delete from Firebase Storage
+      // Delete from cloud storage
       await _voiceService.deleteAudio(url);
 
       setState(() {
@@ -378,8 +394,14 @@ class _EditNoteScreenState extends State<EditNoteScreen> {
         ownerId: widget.note.ownerId, // Preserve owner
       );
 
-      // Update in Firestore
-      await _firestoreService.updateNote(userId, widget.note.id, updatedNote);
+      // Update in Supabase
+      final result = await _supabaseService.updateNote(
+        widget.note.id,
+        updatedNote,
+      );
+      if (!result.success) {
+        throw Exception(result.error ?? 'Failed to update note');
+      }
 
       // Navigate back to HomeScreen
       if (mounted) {
@@ -679,11 +701,14 @@ class _EditNoteScreenState extends State<EditNoteScreen> {
     final userId = _authService.currentUser?.uid;
     if (userId != null) {
       try {
-        final folders = await _firestoreService.getFolders(userId);
-        if (mounted) {
-          setState(() {
-            _folders = folders;
-          });
+        final result = await _supabaseService.getFolders();
+        if (result.success && result.data != null) {
+          final folders = result.data!;
+          if (mounted) {
+            setState(() {
+              _folders = folders;
+            });
+          }
         }
       } catch (e) {
         // Handle error silently for now
@@ -725,7 +750,10 @@ class _EditNoteScreenState extends State<EditNoteScreen> {
             onSave: (template) async {
               final scaffoldMessenger = ScaffoldMessenger.of(context);
               try {
-                await _firestoreService.createTemplate(userId, template);
+                final result = await _supabaseService.createTemplate(template);
+                if (!result.success) {
+                  throw Exception(result.error ?? 'Failed to create template');
+                }
 
                 if (mounted) {
                   scaffoldMessenger.showSnackBar(
@@ -886,11 +914,13 @@ class _EditNoteScreenState extends State<EditNoteScreen> {
       if (userId != null) {
         try {
           final targetFolderId = newFolderId == 'root' ? null : newFolderId;
-          await _firestoreService.moveNoteToFolder(
-            userId,
+          final result = await _supabaseService.moveNoteToFolder(
             widget.note.id,
             targetFolderId,
           );
+          if (!result.success) {
+            throw Exception(result.error ?? 'Failed to move note');
+          }
 
           setState(() {
             _selectedFolderId = targetFolderId;

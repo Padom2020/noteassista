@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
-import '../services/firestore_service.dart';
+import '../services/supabase_service.dart';
 import '../models/daily_note_preferences.dart';
+import '../widgets/database_diagnostic_widget.dart';
 
 class DailyNoteSettingsScreen extends StatefulWidget {
   const DailyNoteSettingsScreen({super.key});
@@ -13,7 +14,7 @@ class DailyNoteSettingsScreen extends StatefulWidget {
 
 class _DailyNoteSettingsScreenState extends State<DailyNoteSettingsScreen> {
   final AuthService _authService = AuthService();
-  final FirestoreService _firestoreService = FirestoreService();
+  final SupabaseService _supabaseService = SupabaseService.instance;
 
   bool _isLoading = true;
   bool _isSaving = false;
@@ -51,34 +52,48 @@ class _DailyNoteSettingsScreenState extends State<DailyNoteSettingsScreen> {
     });
 
     try {
-      final preferences = await _firestoreService.getDailyNotePreferences(
-        userId,
-      );
+      final result = await _supabaseService.getDailyNotePreferences(userId);
 
-      setState(() {
-        _preferences = preferences;
-        _dailyTemplateController.text =
-            preferences.customDailyTemplate ??
-            DailyNotePreferences.getDefaultDailyTemplate();
-        _weeklyTemplateController.text =
-            preferences.customWeeklyTemplate ??
-            DailyNotePreferences.getDefaultWeeklyTemplate();
-        _monthlyTemplateController.text =
-            preferences.customMonthlyTemplate ??
-            DailyNotePreferences.getDefaultMonthlyTemplate();
+      if (result.success && result.data != null) {
+        final preferences = DailyNotePreferences.fromMap(result.data!);
 
-        if (preferences.autoCreateTime != null) {
-          final parts = preferences.autoCreateTime!.split(':');
-          if (parts.length == 2) {
-            _selectedTime = TimeOfDay(
-              hour: int.parse(parts[0]),
-              minute: int.parse(parts[1]),
-            );
+        setState(() {
+          _preferences = preferences;
+          _dailyTemplateController.text =
+              preferences.customDailyTemplate ??
+              DailyNotePreferences.getDefaultDailyTemplate();
+          _weeklyTemplateController.text =
+              preferences.customWeeklyTemplate ??
+              DailyNotePreferences.getDefaultWeeklyTemplate();
+          _monthlyTemplateController.text =
+              preferences.customMonthlyTemplate ??
+              DailyNotePreferences.getDefaultMonthlyTemplate();
+
+          if (preferences.autoCreateTime != null) {
+            final parts = preferences.autoCreateTime!.split(':');
+            if (parts.length == 2) {
+              _selectedTime = TimeOfDay(
+                hour: int.parse(parts[0]),
+                minute: int.parse(parts[1]),
+              );
+            }
           }
-        }
 
-        _isLoading = false;
-      });
+          _isLoading = false;
+        });
+      } else {
+        // Handle error or use default preferences
+        setState(() {
+          _preferences = DailyNotePreferences();
+          _dailyTemplateController.text =
+              DailyNotePreferences.getDefaultDailyTemplate();
+          _weeklyTemplateController.text =
+              DailyNotePreferences.getDefaultWeeklyTemplate();
+          _monthlyTemplateController.text =
+              DailyNotePreferences.getDefaultMonthlyTemplate();
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       setState(() {
         _isLoading = false;
@@ -113,9 +128,9 @@ class _DailyNoteSettingsScreenState extends State<DailyNoteSettingsScreen> {
                 : null,
       );
 
-      await _firestoreService.saveDailyNotePreferences(
+      await _supabaseService.saveDailyNotePreferences(
         userId,
-        updatedPreferences,
+        updatedPreferences.toMap(),
       );
 
       setState(() {
@@ -298,6 +313,54 @@ class _DailyNoteSettingsScreenState extends State<DailyNoteSettingsScreen> {
             controller: _monthlyTemplateController,
             type: DailyNoteType.monthly,
             helpText: 'Available variables: {{month}}, {{year}}',
+          ),
+
+          const SizedBox(height: 24),
+
+          // Database Diagnostics Section
+          Card(
+            color: Colors.orange[50],
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.health_and_safety, color: Colors.orange[700]),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Database Health',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.orange[900],
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Run diagnostics to check your database connectivity and schema status.',
+                    style: TextStyle(fontSize: 14),
+                    softWrap: true,
+                  ),
+                  const SizedBox(height: 12),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      showDialog(
+                        context: context,
+                        builder: (context) => const DatabaseDiagnosticDialog(),
+                      );
+                    },
+                    icon: const Icon(Icons.bug_report),
+                    label: const Text('Run Diagnostics'),
+                  ),
+                ],
+              ),
+            ),
           ),
 
           const SizedBox(height: 24),

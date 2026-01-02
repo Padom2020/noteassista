@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 import '../services/auth_service.dart';
-import '../services/firestore_service.dart';
-import '../models/note_model.dart';
+import '../services/supabase_service.dart';
 import '../widgets/feature_tooltip.dart';
+import '../utils/user_extensions.dart';
 import 'edit_note_screen.dart';
 import 'daily_note_settings_screen.dart';
 
@@ -17,7 +17,7 @@ class DailyNoteCalendarScreen extends StatefulWidget {
 
 class _DailyNoteCalendarScreenState extends State<DailyNoteCalendarScreen> {
   final AuthService _authService = AuthService();
-  final FirestoreService _firestoreService = FirestoreService();
+  final SupabaseService _supabaseService = SupabaseService.instance;
 
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
@@ -35,26 +35,50 @@ class _DailyNoteCalendarScreenState extends State<DailyNoteCalendarScreen> {
   }
 
   Future<void> _loadDatesWithNotes() async {
-    final userId = _authService.currentUser?.uid;
-    if (userId == null) return;
+    final userId = _authService.currentUser.safeUid;
+    if (userId == null || !_authService.currentUser.isAuthenticated) {
+      debugPrint(
+        'DailyNoteCalendar: Cannot load dates - user not authenticated',
+      );
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+      return;
+    }
 
     setState(() {
       _isLoading = true;
     });
 
     try {
-      // Get all notes with "daily" tag
-      final snapshot = await _firestoreService.streamNotes(userId, false).first;
+      debugPrint(
+        'DailyNoteCalendar: Loading dates with notes for user: $userId',
+      );
 
+      // Get all notes with "daily" tag
+      final result = await _supabaseService.getAllNotes();
+
+      if (!result.success || result.data == null) {
+        debugPrint('Failed to load notes: ${result.error}');
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+        return;
+      }
+
+      final notes = result.data!;
       final Map<DateTime, bool> datesMap = {};
 
-      for (var doc in snapshot.docs) {
-        final note = NoteModel.fromFirestore(doc);
-        if (note.tags.contains('daily')) {
-          // Extract date from title "Daily Note - YYYY-MM-DD"
-          final titleParts = note.title.split(' - ');
-          if (titleParts.length == 2) {
-            try {
+      for (var note in notes) {
+        try {
+          if (note.tags.contains('daily')) {
+            // Extract date from title "Daily Note - YYYY-MM-DD"
+            final titleParts = note.title.split(' - ');
+            if (titleParts.length == 2) {
               final dateParts = titleParts[1].split('-');
               if (dateParts.length == 3) {
                 final date = DateTime(
@@ -64,10 +88,11 @@ class _DailyNoteCalendarScreenState extends State<DailyNoteCalendarScreen> {
                 );
                 datesMap[_normalizeDate(date)] = true;
               }
-            } catch (e) {
-              // Skip invalid date formats
             }
           }
+        } catch (e) {
+          debugPrint('DailyNoteCalendar: Error processing note document: $e');
+          // Continue processing other notes
         }
       }
 
@@ -76,16 +101,26 @@ class _DailyNoteCalendarScreenState extends State<DailyNoteCalendarScreen> {
           _datesWithNotes = datesMap;
           _isLoading = false;
         });
+        debugPrint(
+          'DailyNoteCalendar: Loaded ${datesMap.length} dates with notes',
+        );
       }
     } catch (e) {
+      debugPrint('DailyNoteCalendar: Error loading calendar data: $e');
       if (mounted) {
         setState(() {
           _isLoading = false;
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error loading calendar: $e'),
+            content: Text('Error loading calendar: ${e.toString()}'),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+            action: SnackBarAction(
+              label: 'Retry',
+              textColor: Colors.white,
+              onPressed: _loadDatesWithNotes,
+            ),
           ),
         );
       }
@@ -97,17 +132,23 @@ class _DailyNoteCalendarScreenState extends State<DailyNoteCalendarScreen> {
   }
 
   Future<void> _calculateStreak() async {
-    final userId = _authService.currentUser?.uid;
-    if (userId == null) return;
+    final userId = _authService.currentUser.safeUid;
+    if (userId == null || !_authService.currentUser.isAuthenticated) {
+      return;
+    }
 
     try {
       // Get all daily notes sorted by date
-      final snapshot = await _firestoreService.streamNotes(userId, false).first;
+      final result = await _supabaseService.getAllNotes();
 
+      if (!result.success || result.data == null) {
+        return;
+      }
+
+      final notes = result.data!;
       final List<DateTime> dailyNoteDates = [];
 
-      for (var doc in snapshot.docs) {
-        final note = NoteModel.fromFirestore(doc);
+      for (var note in notes) {
         if (note.tags.contains('daily')) {
           final titleParts = note.title.split(' - ');
           if (titleParts.length == 2) {
@@ -156,42 +197,89 @@ class _DailyNoteCalendarScreenState extends State<DailyNoteCalendarScreen> {
   }
 
   Future<void> _openDailyNote(DateTime date) async {
-    final userId = _authService.currentUser?.uid;
-    if (userId == null) return;
+    final userId = _authService.currentUser.safeUid;
+    if (userId == null || !_authService.currentUser.isAuthenticated) {
+      debugPrint(
+        'DailyNoteCalendar: Cannot open daily note - user not authenticated',
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Please log in to access daily notes'),
+            backgroundColor: Colors.orange,
+            action: SnackBarAction(
+              label: 'Login',
+              textColor: Colors.white,
+              onPressed: () {
+                // Navigate to login or trigger auth flow
+              },
+            ),
+          ),
+        );
+      }
+      return;
+    }
 
     setState(() {
       _isLoading = true;
     });
 
     try {
-      final note = await _firestoreService.getDailyNoteForDate(userId, date);
+      debugPrint(
+        'DailyNoteCalendar: Opening daily note for date: ${date.toIso8601String()}',
+      );
+      final noteResult = await _supabaseService.getDailyNoteForDate(
+        userId,
+        date,
+      );
 
       if (mounted) {
         setState(() {
           _isLoading = false;
         });
 
-        // Navigate to edit screen
-        final result = await Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => EditNoteScreen(note: note)),
-        );
+        if (noteResult.success && noteResult.data != null) {
+          // Navigate to edit screen
+          final result = await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => EditNoteScreen(note: noteResult.data!),
+            ),
+          );
 
-        // Reload calendar if note was edited
-        if (result == true) {
-          _loadDatesWithNotes();
-          _calculateStreak();
+          // Reload calendar if note was edited
+          if (result == true) {
+            _loadDatesWithNotes();
+            _calculateStreak();
+          }
+        } else {
+          // Handle error or create new note
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Could not load daily note: ${noteResult.error ?? "Unknown error"}',
+              ),
+              backgroundColor: Colors.red,
+            ),
+          );
         }
       }
     } catch (e) {
+      debugPrint('DailyNoteCalendar: Error opening daily note: $e');
       if (mounted) {
         setState(() {
           _isLoading = false;
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error opening daily note: $e'),
+            content: Text('Error opening daily note: ${e.toString()}'),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 4),
+            action: SnackBarAction(
+              label: 'Retry',
+              textColor: Colors.white,
+              onPressed: () => _openDailyNote(date),
+            ),
           ),
         );
       }
@@ -217,15 +305,25 @@ class _DailyNoteCalendarScreenState extends State<DailyNoteCalendarScreen> {
   }
 
   Future<void> _openWeeklyNote() async {
-    final userId = _authService.currentUser?.uid;
-    if (userId == null) return;
+    final userId = _authService.currentUser.safeUid;
+    if (userId == null || !_authService.currentUser.isAuthenticated) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please log in to access weekly notes'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+      return;
+    }
 
     setState(() {
       _isLoading = true;
     });
 
     try {
-      final note = await _firestoreService.getWeeklyNoteForDate(
+      final noteResult = await _supabaseService.getWeeklyNoteForDate(
         userId,
         _selectedDay ?? DateTime.now(),
       );
@@ -235,10 +333,23 @@ class _DailyNoteCalendarScreenState extends State<DailyNoteCalendarScreen> {
           _isLoading = false;
         });
 
-        await Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => EditNoteScreen(note: note)),
-        );
+        if (noteResult.success && noteResult.data != null) {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => EditNoteScreen(note: noteResult.data!),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Could not load weekly note: ${noteResult.error ?? "Unknown error"}',
+              ),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -256,15 +367,25 @@ class _DailyNoteCalendarScreenState extends State<DailyNoteCalendarScreen> {
   }
 
   Future<void> _openMonthlyNote() async {
-    final userId = _authService.currentUser?.uid;
-    if (userId == null) return;
+    final userId = _authService.currentUser.safeUid;
+    if (userId == null || !_authService.currentUser.isAuthenticated) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please log in to access monthly notes'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+      return;
+    }
 
     setState(() {
       _isLoading = true;
     });
 
     try {
-      final note = await _firestoreService.getMonthlyNoteForDate(
+      final noteResult = await _supabaseService.getMonthlyNoteForDate(
         userId,
         _selectedDay ?? DateTime.now(),
       );
@@ -274,10 +395,23 @@ class _DailyNoteCalendarScreenState extends State<DailyNoteCalendarScreen> {
           _isLoading = false;
         });
 
-        await Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => EditNoteScreen(note: note)),
-        );
+        if (noteResult.success && noteResult.data != null) {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => EditNoteScreen(note: noteResult.data!),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Could not load monthly note: ${noteResult.error ?? "Unknown error"}',
+              ),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -296,6 +430,26 @@ class _DailyNoteCalendarScreenState extends State<DailyNoteCalendarScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Check if user is authenticated
+    if (!_authService.currentUser.isAuthenticated) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Daily Notes')),
+        body: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.login, size: 64, color: Colors.grey),
+              SizedBox(height: 16),
+              Text(
+                'Please log in to access daily notes',
+                style: TextStyle(fontSize: 18, color: Colors.grey),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Daily Notes'),

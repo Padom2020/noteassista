@@ -1,6 +1,6 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../models/note_model.dart';
+import 'supabase_service.dart';
 
 /// Represents a parsed link from note content
 class NoteLink {
@@ -83,15 +83,15 @@ class GraphData {
 
 /// Service for managing note links and building knowledge graphs
 class LinkManagementService {
-  final FirebaseFirestore _firestore;
+  final SupabaseService _supabaseService;
 
   /// Regular expression to match [[Note Title]] or [[Note Title|Display Text]]
   static final RegExp _linkPattern = RegExp(
     r'\[\[([^\]|]+)(?:\|([^\]]+))?\]\]',
   );
 
-  LinkManagementService({FirebaseFirestore? firestore})
-    : _firestore = firestore ?? FirebaseFirestore.instance;
+  LinkManagementService({SupabaseService? supabaseService})
+    : _supabaseService = supabaseService ?? SupabaseService.instance;
 
   /// Parse note content to extract all wiki-style links
   /// Supports both [[Note Title]] and [[Note Title|Display Text]] syntax
@@ -122,23 +122,16 @@ class LinkManagementService {
   /// Get all notes that link to the specified note (backlinks)
   Future<List<NoteModel>> getBacklinks(String userId, String noteTitle) async {
     try {
-      final querySnapshot =
-          await _firestore
-              .collection('users')
-              .doc(userId)
-              .collection('notes')
-              .where('outgoingLinks', arrayContains: noteTitle)
-              .get();
-
-      return querySnapshot.docs
-          .map((doc) => NoteModel.fromFirestore(doc))
+      final result = await _supabaseService.getAllNotes();
+      if (!result.success || result.data == null) {
+        throw Exception('Failed to get notes: ${result.error}');
+      }
+      return result.data!
+          .where((note) => note.outgoingLinks.contains(noteTitle))
           .toList();
-    } on FirebaseException catch (e) {
-      debugPrint('Error getting backlinks: ${e.code} - ${e.message}');
-      throw Exception('Failed to get backlinks: ${e.message}');
     } catch (e) {
-      debugPrint('Unexpected error getting backlinks: $e');
-      throw Exception('Failed to get backlinks');
+      debugPrint('Error getting backlinks: $e');
+      throw Exception('Failed to get backlinks: $e');
     }
   }
 
@@ -151,20 +144,16 @@ class LinkManagementService {
   ) async {
     try {
       // Get all notes that link to the old title
-      final querySnapshot =
-          await _firestore
-              .collection('users')
-              .doc(userId)
-              .collection('notes')
-              .where('outgoingLinks', arrayContains: oldTitle)
-              .get();
+      final result = await _supabaseService.getAllNotes();
+      if (!result.success || result.data == null) {
+        return;
+      }
+      final notes = result.data!;
+      final notesToUpdate =
+          notes.where((note) => note.outgoingLinks.contains(oldTitle)).toList();
 
       // Update each note's content and outgoingLinks array
-      final batch = _firestore.batch();
-
-      for (final doc in querySnapshot.docs) {
-        final note = NoteModel.fromFirestore(doc);
-
+      for (final note in notesToUpdate) {
         // Replace old title with new title in description
         String updatedDescription = note.description;
         updatedDescription = updatedDescription.replaceAll(
@@ -182,57 +171,51 @@ class LinkManagementService {
               return link == oldTitle ? newTitle : link;
             }).toList();
 
-        batch.update(doc.reference, {
-          'description': updatedDescription,
-          'outgoingLinks': updatedLinks,
-          'updatedAt': Timestamp.now(),
-        });
-      }
+        // Create updated note
+        final updatedNote = note.copyWith(
+          description: updatedDescription,
+          outgoingLinks: updatedLinks,
+        );
 
-      await batch.commit();
-    } on FirebaseException catch (e) {
-      debugPrint('Error updating links on rename: ${e.code} - ${e.message}');
-      throw Exception('Failed to update links: ${e.message}');
+        await _supabaseService.updateNote(note.id, updatedNote);
+      }
     } catch (e) {
-      debugPrint('Unexpected error updating links on rename: $e');
-      throw Exception('Failed to update links');
+      debugPrint('Error updating links on rename: $e');
+      throw Exception('Failed to update links: $e');
     }
   }
 
   /// Create a new note from a link to a non-existent note
   Future<String> createNoteFromLink(String userId, String noteTitle) async {
     try {
-      final docRef = await _firestore
-          .collection('users')
-          .doc(userId)
-          .collection('notes')
-          .add({
-            'title': noteTitle,
-            'description': '',
-            'timestamp': DateTime.now().toString(),
-            'categoryImageIndex': 0,
-            'isDone': false,
-            'isPinned': false,
-            'tags': [],
-            'createdAt': Timestamp.now(),
-            'updatedAt': Timestamp.now(),
-            'outgoingLinks': [],
-            'audioUrls': [],
-            'imageUrls': [],
-            'drawingUrls': [],
-            'isShared': false,
-            'collaboratorIds': [],
-            'viewCount': 0,
-            'wordCount': 0,
-          });
+      final newNote = NoteModel(
+        id: '',
+        title: noteTitle,
+        description: '',
+        timestamp: DateTime.now().toString(),
+        categoryImageIndex: 0,
+        isDone: false,
+        isPinned: false,
+        tags: [],
+        outgoingLinks: [],
+        audioUrls: [],
+        imageUrls: [],
+        drawingUrls: [],
+        isShared: false,
+        collaboratorIds: [],
+        viewCount: 0,
+        wordCount: 0,
+      );
 
-      return docRef.id;
-    } on FirebaseException catch (e) {
-      debugPrint('Error creating note from link: ${e.code} - ${e.message}');
-      throw Exception('Failed to create note: ${e.message}');
+      final result = await _supabaseService.createNote(newNote);
+      if (result.success && result.data != null) {
+        return result.data!;
+      } else {
+        throw Exception('Failed to create note: ${result.error}');
+      }
     } catch (e) {
-      debugPrint('Unexpected error creating note from link: $e');
-      throw Exception('Failed to create note');
+      debugPrint('Error creating note from link: $e');
+      throw Exception('Failed to create note: $e');
     }
   }
 
@@ -247,22 +230,18 @@ class LinkManagementService {
     }
 
     try {
-      final querySnapshot =
-          await _firestore
-              .collection('users')
-              .doc(userId)
-              .collection('notes')
-              .get();
-
+      final result = await _supabaseService.getAllNotes();
+      if (!result.success || result.data == null) {
+        return [];
+      }
+      final notes = result.data!;
       final partialLower = partial.toLowerCase();
       final suggestions = <String>[];
 
-      for (final doc in querySnapshot.docs) {
-        final title = doc.data()['title'] as String? ?? '';
-        final titleLower = title.toLowerCase();
-
+      for (final note in notes) {
+        final titleLower = note.title.toLowerCase();
         if (titleLower.contains(partialLower)) {
-          suggestions.add(title);
+          suggestions.add(note.title);
         }
       }
 
@@ -287,12 +266,9 @@ class LinkManagementService {
       });
 
       return suggestions.take(10).toList();
-    } on FirebaseException catch (e) {
-      debugPrint('Error getting title suggestions: ${e.code} - ${e.message}');
-      throw Exception('Failed to get suggestions: ${e.message}');
     } catch (e) {
-      debugPrint('Unexpected error getting title suggestions: $e');
-      throw Exception('Failed to get suggestions');
+      debugPrint('Error getting title suggestions: $e');
+      throw Exception('Failed to get suggestions: $e');
     }
   }
 
@@ -300,17 +276,11 @@ class LinkManagementService {
   /// Creates nodes for each note and edges for links between them
   Future<GraphData> buildNoteGraph(String userId) async {
     try {
-      final querySnapshot =
-          await _firestore
-              .collection('users')
-              .doc(userId)
-              .collection('notes')
-              .get();
-
-      final notes =
-          querySnapshot.docs
-              .map((doc) => NoteModel.fromFirestore(doc))
-              .toList();
+      final result = await _supabaseService.getAllNotes();
+      if (!result.success || result.data == null) {
+        return GraphData(nodes: [], edges: []);
+      }
+      final notes = result.data!;
 
       // Create a map of note titles to IDs for quick lookup
       final titleToId = <String, String>{};
@@ -326,7 +296,8 @@ class LinkManagementService {
       for (final note in notes) {
         // Add outgoing links count
         connectionCounts[note.id] =
-            (connectionCounts[note.id] ?? 0) + note.outgoingLinks.length;
+            ((connectionCounts[note.id] ?? 0) + note.outgoingLinks.length)
+                .toInt();
         // Add incoming links count for targets
         for (final link in note.outgoingLinks) {
           final targetId = titleToId[link];
@@ -360,12 +331,9 @@ class LinkManagementService {
       }
 
       return GraphData(nodes: nodes, edges: edges);
-    } on FirebaseException catch (e) {
-      debugPrint('Error building note graph: ${e.code} - ${e.message}');
-      throw Exception('Failed to build graph: ${e.message}');
     } catch (e) {
-      debugPrint('Unexpected error building note graph: $e');
-      throw Exception('Failed to build graph');
+      debugPrint('Error building note graph: $e');
+      throw Exception('Failed to build graph: $e');
     }
   }
 
@@ -380,57 +348,45 @@ class LinkManagementService {
     }
 
     try {
-      final querySnapshot =
-          await _firestore
-              .collection('users')
-              .doc(userId)
-              .collection('notes')
-              .get();
-
+      final result = await _supabaseService.getAllNotes();
+      if (!result.success || result.data == null) {
+        return titles.asMap().map((_, title) => MapEntry(title, false));
+      }
+      final notes = result.data!;
       final existingTitles = <String>{};
-      for (final doc in querySnapshot.docs) {
-        final title = doc.data()['title'] as String? ?? '';
-        existingTitles.add(title);
+      for (final note in notes) {
+        existingTitles.add(note.title);
       }
 
-      final result = <String, bool>{};
+      final resultMap = <String, bool>{};
       for (final title in titles) {
-        result[title] = existingTitles.contains(title);
+        resultMap[title] = existingTitles.contains(title);
       }
 
-      return result;
-    } on FirebaseException catch (e) {
-      debugPrint('Error checking notes exist: ${e.code} - ${e.message}');
-      throw Exception('Failed to check notes: ${e.message}');
+      return resultMap;
     } catch (e) {
-      debugPrint('Unexpected error checking notes exist: $e');
-      throw Exception('Failed to check notes');
+      debugPrint('Error checking notes exist: $e');
+      throw Exception('Failed to check notes: $e');
     }
   }
 
   /// Get a note by its title
   Future<NoteModel?> getNoteByTitle(String userId, String title) async {
     try {
-      final querySnapshot =
-          await _firestore
-              .collection('users')
-              .doc(userId)
-              .collection('notes')
-              .where('title', isEqualTo: title)
-              .limit(1)
-              .get();
-
-      if (querySnapshot.docs.isEmpty) {
+      final result = await _supabaseService.getAllNotes();
+      if (!result.success || result.data == null) {
         return null;
       }
-
-      return NoteModel.fromFirestore(querySnapshot.docs.first);
-    } on FirebaseException catch (e) {
-      debugPrint('Error getting note by title: ${e.code} - ${e.message}');
-      throw Exception('Failed to get note: ${e.message}');
+      final notes = result.data!;
+      for (final note in notes) {
+        if (note.title == title) {
+          return note;
+        }
+      }
+      return null;
     } catch (e) {
-      debugPrint('Unexpected error getting note by title: $e');
-      throw Exception('Failed to get note');
+      debugPrint('Error getting note by title: $e');
+      throw Exception('Failed to get note: $e');
     }
   }
 }

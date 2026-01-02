@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 enum DailyNoteType { daily, weekly, monthly }
 
 class DailyNotePreferences {
@@ -39,14 +37,6 @@ class DailyNotePreferences {
       autoCreateTime: data['autoCreateTime'] as String?,
       useCustomTemplate: data['useCustomTemplate'] as bool? ?? false,
     );
-  }
-
-  factory DailyNotePreferences.fromFirestore(DocumentSnapshot doc) {
-    if (!doc.exists) {
-      return DailyNotePreferences();
-    }
-    final data = doc.data() as Map<String, dynamic>;
-    return DailyNotePreferences.fromMap(data);
   }
 
   DailyNotePreferences copyWith({

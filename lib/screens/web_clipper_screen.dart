@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import '../services/auth_service.dart';
 import '../services/web_clipper_service.dart';
-import '../services/firestore_service.dart';
+import '../services/supabase_service.dart';
 import '../models/note_model.dart';
 
 /// Screen for handling web page clipping from shared URLs
@@ -15,8 +15,9 @@ class WebClipperScreen extends StatefulWidget {
 }
 
 class _WebClipperScreenState extends State<WebClipperScreen> {
+  final AuthService _authService = AuthService();
   final WebClipperService _webClipperService = WebClipperService();
-  final FirestoreService _firestoreService = FirestoreService();
+  final SupabaseService _supabaseService = SupabaseService.instance;
 
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _contentController = TextEditingController();
@@ -56,7 +57,7 @@ class _WebClipperScreenState extends State<WebClipperScreen> {
       // Download featured image if available
       String? imageUrl;
       if (result.featuredImageUrl != null) {
-        final user = FirebaseAuth.instance.currentUser;
+        final user = _authService.currentUser;
         if (user != null) {
           imageUrl = await _webClipperService.downloadFeaturedImage(
             result.featuredImageUrl!,
@@ -83,7 +84,7 @@ class _WebClipperScreenState extends State<WebClipperScreen> {
 
   /// Save the clipped content as a note
   Future<void> _saveNote() async {
-    final user = FirebaseAuth.instance.currentUser;
+    final user = _authService.currentUser;
     if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please sign in to save notes')),
@@ -120,8 +121,8 @@ class _WebClipperScreenState extends State<WebClipperScreen> {
         wordCount: _contentController.text.trim().split(RegExp(r'\s+')).length,
       );
 
-      // Save to Firestore
-      await _firestoreService.createNote(user.uid, note);
+      // Save to Supabase
+      await _supabaseService.createNote(note);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

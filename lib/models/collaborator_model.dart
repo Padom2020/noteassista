@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 enum CollaboratorRole { viewer, editor, owner }
 
 class CollaboratorModel {
@@ -23,7 +21,7 @@ class CollaboratorModel {
       'email': email,
       'displayName': displayName,
       'role': role.toString(),
-      'addedAt': Timestamp.fromDate(addedAt),
+      'addedAt': addedAt.toIso8601String(),
     };
   }
 
@@ -38,14 +36,9 @@ class CollaboratorModel {
       ),
       addedAt:
           data['addedAt'] != null
-              ? (data['addedAt'] as Timestamp).toDate()
+              ? DateTime.parse(data['addedAt'] as String)
               : DateTime.now(),
     );
-  }
-
-  factory CollaboratorModel.fromFirestore(DocumentSnapshot doc) {
-    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-    return CollaboratorModel.fromMap(data);
   }
 
   CollaboratorModel copyWith({

@@ -3,8 +3,6 @@ import org.gradle.api.plugins.JavaPlugin
 import org.gradle.api.plugins.JavaPluginExtension
 
 plugins {
-    // Add the dependency for the Google services Gradle plugin
-    id("com.google.gms.google-services") version "4.3.15" apply false
     // Android Gradle Plugin - using existing version
     id("com.android.application") version "8.7.2" apply false
     id("org.jetbrains.kotlin.android") version "2.1.0" apply false

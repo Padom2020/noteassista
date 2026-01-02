@@ -1,8 +1,8 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../services/link_management_service.dart';
 import '../services/graph_navigation_service.dart';
+import '../services/auth_service.dart';
 import '../utils/performance_utils.dart';
 import '../utils/graph_coordinate_system.dart';
 
@@ -18,6 +18,7 @@ class _GraphViewScreenState extends State<GraphViewScreen>
     with TickerProviderStateMixin, DebounceMixin {
   final LinkManagementService _linkService = LinkManagementService();
   final GraphNavigationService _navigationService = GraphNavigationService();
+  final AuthService _authService = AuthService();
   final TransformationController _transformationController =
       TransformationController();
 
@@ -55,7 +56,7 @@ class _GraphViewScreenState extends State<GraphViewScreen>
     });
 
     try {
-      final user = FirebaseAuth.instance.currentUser;
+      final user = _authService.currentUser;
       if (user == null) {
         throw Exception('User not authenticated');
       }

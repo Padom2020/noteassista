@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/folder_model.dart';
 import '../models/note_model.dart';
-import '../services/auth_service.dart';
-import '../services/firestore_service.dart';
+import '../services/supabase_service.dart';
 
 /// Dialog for moving a note to a different folder
 class MoveFolderDialog extends StatefulWidget {
@@ -23,8 +22,7 @@ class MoveFolderDialog extends StatefulWidget {
 }
 
 class _MoveFolderDialogState extends State<MoveFolderDialog> {
-  final AuthService _authService = AuthService();
-  final FirestoreService _firestoreService = FirestoreService();
+  final SupabaseService _supabaseService = SupabaseService.instance;
 
   String? _selectedFolderId;
   bool _isMoving = false;
@@ -45,32 +43,35 @@ class _MoveFolderDialogState extends State<MoveFolderDialog> {
     setState(() => _isMoving = true);
 
     try {
-      final userId = _authService.currentUser?.uid;
-      if (userId == null) {
-        throw Exception('User not authenticated');
-      }
-
-      await _firestoreService.moveNoteToFolder(
-        userId,
+      final result = await _supabaseService.moveNoteToFolder(
         widget.note.id,
         _selectedFolderId,
       );
 
       if (mounted) {
-        final folderName =
-            _selectedFolderId == null
-                ? 'Root'
-                : widget.folders
-                    .firstWhere((f) => f.id == _selectedFolderId)
-                    .name;
+        if (result.success) {
+          final folderName =
+              _selectedFolderId == null
+                  ? 'Root'
+                  : widget.folders
+                      .firstWhere((f) => f.id == _selectedFolderId)
+                      .name;
 
-        Navigator.of(context).pop(true);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Note moved to "$folderName"'),
-            backgroundColor: Colors.green,
-          ),
-        );
+          Navigator.of(context).pop(true);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Note moved to "$folderName"'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error moving note: ${result.error}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {

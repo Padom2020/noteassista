@@ -4,11 +4,11 @@ import 'test_helpers.dart';
 
 void main() {
   setUpAll(() async {
-    await setupFirebaseAuthMocks();
+    await setupSupabaseMocks();
   });
 
   tearDownAll(() {
-    tearDownFirebaseAuthMocks();
+    tearDownSupabaseMocks();
   });
   group('CollaborationNotificationService Tests', () {
     late CollaborationNotificationService notificationService;

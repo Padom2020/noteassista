@@ -3,11 +3,9 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
+  app_links
   audioplayers_windows
-  cloud_firestore
   file_selector_windows
-  firebase_auth
-  firebase_core
   flutter_sound
   geolocator_windows
   permission_handler_windows

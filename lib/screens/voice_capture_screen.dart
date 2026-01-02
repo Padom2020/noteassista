@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/voice_service.dart';
 import '../services/auth_service.dart';
-import '../services/firestore_service.dart';
+import '../services/supabase_service.dart';
 import '../models/note_model.dart';
 import '../utils/timestamp_utils.dart';
 
@@ -18,7 +18,7 @@ class _VoiceCaptureScreenState extends State<VoiceCaptureScreen>
     with SingleTickerProviderStateMixin {
   final VoiceService _voiceService = VoiceService();
   final AuthService _authService = AuthService();
-  final FirestoreService _firestoreService = FirestoreService();
+  final SupabaseService _supabaseService = SupabaseService.instance;
 
   late AnimationController _animationController;
   late Animation<double> _scaleAnimation;
@@ -188,7 +188,7 @@ class _VoiceCaptureScreenState extends State<VoiceCaptureScreen>
         ownerId: userId, // Set the owner
       );
 
-      await _firestoreService.createNote(userId, note);
+      await _supabaseService.createNote(note);
 
       if (mounted) {
         Navigator.pop(context);

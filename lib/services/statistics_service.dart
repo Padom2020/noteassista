@@ -1,28 +1,22 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/note_model.dart';
 import '../models/statistics_model.dart';
+import '../services/supabase_service.dart';
 
 class StatisticsService {
-  final FirebaseFirestore _firestore;
+  final SupabaseService _supabaseService;
 
-  StatisticsService({FirebaseFirestore? firestore})
-    : _firestore = firestore ?? FirebaseFirestore.instance;
+  StatisticsService({SupabaseService? supabaseService})
+    : _supabaseService = supabaseService ?? SupabaseService.instance;
 
   /// Calculate comprehensive statistics for a user's notes
   Future<StatisticsModel> calculateStatistics(String userId) async {
     try {
       // Fetch all notes for the user
-      final notesSnapshot =
-          await _firestore
-              .collection('users')
-              .doc(userId)
-              .collection('notes')
-              .get();
-
-      final notes =
-          notesSnapshot.docs
-              .map((doc) => NoteModel.fromFirestore(doc))
-              .toList();
+      final result = await _supabaseService.getAllNotes();
+      if (!result.success || result.data == null) {
+        return StatisticsModel();
+      }
+      final notes = result.data!;
 
       if (notes.isEmpty) {
         return StatisticsModel();

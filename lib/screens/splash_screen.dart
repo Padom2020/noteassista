@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'auth_wrapper.dart';
+import 'login_screen.dart';
 import '../widgets/app_logo.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -48,6 +49,16 @@ class _SplashScreenState extends State<SplashScreen>
       if (mounted) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (context) => const AuthWrapper()),
+        );
+      }
+    });
+
+    // Fallback navigation in case something goes wrong
+    Timer(const Duration(seconds: 10), () {
+      if (mounted) {
+        // Force navigation to login screen if still on splash
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
         );
       }
     });

@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import '../models/template_model.dart';
-import '../services/firestore_service.dart';
+import '../services/supabase_service.dart';
 
 class ShareTemplateDialog extends StatefulWidget {
   final TemplateModel template;
@@ -16,7 +16,7 @@ class ShareTemplateDialog extends StatefulWidget {
 }
 
 class _ShareTemplateDialogState extends State<ShareTemplateDialog> {
-  final FirestoreService _firestoreService = FirestoreService();
+  final SupabaseService _supabaseService = SupabaseService.instance;
   bool _isExporting = false;
 
   Future<void> _exportAsJson() async {
@@ -25,7 +25,12 @@ class _ShareTemplateDialogState extends State<ShareTemplateDialog> {
     });
 
     try {
-      final jsonString = _firestoreService.exportTemplate(widget.template);
+      final result = _supabaseService.exportTemplate(widget.template);
+      if (!result.success) {
+        throw Exception(result.error);
+      }
+
+      final jsonString = result.data!;
 
       // Create a temporary file
       final directory = await getTemporaryDirectory();
@@ -70,7 +75,12 @@ class _ShareTemplateDialogState extends State<ShareTemplateDialog> {
 
   Future<void> _copyToClipboard() async {
     try {
-      final jsonString = _firestoreService.exportTemplate(widget.template);
+      final result = _supabaseService.exportTemplate(widget.template);
+      if (!result.success) {
+        throw Exception(result.error);
+      }
+
+      final jsonString = result.data!;
       await Clipboard.setData(ClipboardData(text: jsonString));
 
       if (mounted) {

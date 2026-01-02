@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/note_model.dart';
 import '../services/auth_service.dart';
-import '../services/firestore_service.dart';
+import '../services/supabase_service.dart';
 import '../screens/edit_note_screen.dart';
 
 class RemindersScreen extends StatefulWidget {
@@ -13,7 +13,7 @@ class RemindersScreen extends StatefulWidget {
 
 class _RemindersScreenState extends State<RemindersScreen> {
   final AuthService _authService = AuthService();
-  final FirestoreService _firestoreService = FirestoreService();
+  final SupabaseService _supabaseService = SupabaseService.instance;
 
   List<NoteWithReminder> _notesWithReminders = [];
   bool _isLoading = true;
@@ -34,11 +34,15 @@ class _RemindersScreenState extends State<RemindersScreen> {
       if (userId == null) return;
 
       // Get all notes
-      final notes = await _firestoreService.getNotesByFolder(userId, null);
+      final notesResult = await _supabaseService.getAllNotes();
+
+      if (!notesResult.success || notesResult.data == null) {
+        throw Exception(notesResult.error ?? 'Failed to load notes');
+      }
 
       // Filter notes with reminders
       final notesWithReminders =
-          notes
+          notesResult.data!
               .where((note) => note.reminder != null)
               .map(
                 (note) =>

@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 class ReminderModel {
   final String id;
   final ReminderType type;
@@ -158,8 +156,8 @@ class NoteModel {
       'customImageUrl': customImageUrl,
       'isPinned': isPinned,
       'tags': tags,
-      'createdAt': Timestamp.fromDate(createdAt),
-      'updatedAt': Timestamp.fromDate(updatedAt),
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
       'outgoingLinks': outgoingLinks,
       'audioUrls': audioUrls,
       'imageUrls': imageUrls,
@@ -176,49 +174,57 @@ class NoteModel {
     };
   }
 
-  factory NoteModel.fromFirestore(DocumentSnapshot doc) {
-    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+  NoteModel copyWith({
+    String? id,
+    String? title,
+    String? description,
+    String? timestamp,
+    int? categoryImageIndex,
+    bool? isDone,
+    String? customImageUrl,
+    bool? isPinned,
+    List<String>? tags,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    List<String>? outgoingLinks,
+    List<String>? audioUrls,
+    List<String>? imageUrls,
+    List<String>? drawingUrls,
+    String? folderId,
+    bool? isShared,
+    List<String>? collaboratorIds,
+    List<Map<String, dynamic>>? collaborators,
+    String? sourceUrl,
+    ReminderModel? reminder,
+    int? viewCount,
+    int? wordCount,
+    String? ownerId,
+  }) {
     return NoteModel(
-      id: doc.id,
-      title: data['title'] ?? '',
-      description: data['description'] ?? '',
-      timestamp: data['timestamp'] ?? '',
-      categoryImageIndex: data['categoryImageIndex'] ?? 0,
-      isDone: data['isDone'] ?? false,
-      customImageUrl: data['customImageUrl'],
-      isPinned: data['isPinned'] ?? false,
-      tags: List<String>.from(data['tags'] ?? []),
-      createdAt:
-          data['createdAt'] != null
-              ? (data['createdAt'] as Timestamp).toDate()
-              : DateTime.now(),
-      updatedAt:
-          data['updatedAt'] != null
-              ? (data['updatedAt'] as Timestamp).toDate()
-              : DateTime.now(),
-      outgoingLinks: List<String>.from(data['outgoingLinks'] ?? []),
-      audioUrls: List<String>.from(data['audioUrls'] ?? []),
-      imageUrls: List<String>.from(data['imageUrls'] ?? []),
-      drawingUrls: List<String>.from(data['drawingUrls'] ?? []),
-      folderId: data['folderId'],
-      isShared: data['isShared'] ?? false,
-      collaboratorIds: List<String>.from(data['collaboratorIds'] ?? []),
-      collaborators:
-          data['collaborators'] != null
-              ? List<Map<String, dynamic>>.from(
-                (data['collaborators'] as List).map(
-                  (item) => Map<String, dynamic>.from(item as Map),
-                ),
-              )
-              : [],
-      sourceUrl: data['sourceUrl'],
-      reminder:
-          data['reminder'] != null
-              ? ReminderModel.fromMap(data['reminder'])
-              : null,
-      viewCount: data['viewCount'] ?? 0,
-      wordCount: data['wordCount'] ?? 0,
-      ownerId: data['ownerId'],
+      id: id ?? this.id,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      timestamp: timestamp ?? this.timestamp,
+      categoryImageIndex: categoryImageIndex ?? this.categoryImageIndex,
+      isDone: isDone ?? this.isDone,
+      customImageUrl: customImageUrl ?? this.customImageUrl,
+      isPinned: isPinned ?? this.isPinned,
+      tags: tags ?? this.tags,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      outgoingLinks: outgoingLinks ?? this.outgoingLinks,
+      audioUrls: audioUrls ?? this.audioUrls,
+      imageUrls: imageUrls ?? this.imageUrls,
+      drawingUrls: drawingUrls ?? this.drawingUrls,
+      folderId: folderId ?? this.folderId,
+      isShared: isShared ?? this.isShared,
+      collaboratorIds: collaboratorIds ?? this.collaboratorIds,
+      collaborators: collaborators ?? this.collaborators,
+      sourceUrl: sourceUrl ?? this.sourceUrl,
+      reminder: reminder ?? this.reminder,
+      viewCount: viewCount ?? this.viewCount,
+      wordCount: wordCount ?? this.wordCount,
+      ownerId: ownerId ?? this.ownerId,
     );
   }
 }

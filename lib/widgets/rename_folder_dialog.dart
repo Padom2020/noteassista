@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/folder_model.dart';
-import '../services/auth_service.dart';
-import '../services/firestore_service.dart';
+import '../services/supabase_service.dart';
 
 /// Dialog for renaming an existing folder
 class RenameFolderDialog extends StatefulWidget {
@@ -17,8 +16,7 @@ class RenameFolderDialog extends StatefulWidget {
 class _RenameFolderDialogState extends State<RenameFolderDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameController;
-  final AuthService _authService = AuthService();
-  final FirestoreService _firestoreService = FirestoreService();
+  final SupabaseService _supabaseService = SupabaseService.instance;
 
   bool _isRenaming = false;
 
@@ -48,26 +46,29 @@ class _RenameFolderDialogState extends State<RenameFolderDialog> {
     setState(() => _isRenaming = true);
 
     try {
-      final userId = _authService.currentUser?.uid;
-      if (userId == null) {
-        throw Exception('User not authenticated');
-      }
-
       final updatedFolder = widget.folder.copyWith(name: newName);
-      await _firestoreService.updateFolder(
-        userId,
+      final result = await _supabaseService.updateFolder(
         widget.folder.id,
         updatedFolder,
       );
 
       if (mounted) {
-        Navigator.of(context).pop(true);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Folder renamed to "$newName"'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        if (result.success) {
+          Navigator.of(context).pop(true);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Folder renamed to "$newName"'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error renaming folder: ${result.error}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {

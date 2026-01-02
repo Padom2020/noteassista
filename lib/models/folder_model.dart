@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 class FolderModel {
   final String id;
   final String name;
@@ -25,25 +23,9 @@ class FolderModel {
       'parentId': parentId,
       'color': color,
       'noteCount': noteCount,
-      'createdAt': Timestamp.fromDate(createdAt),
+      'createdAt': createdAt.toIso8601String(),
       'isFavorite': isFavorite,
     };
-  }
-
-  factory FolderModel.fromFirestore(DocumentSnapshot doc) {
-    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-    return FolderModel(
-      id: doc.id,
-      name: data['name'] ?? '',
-      parentId: data['parentId'],
-      color: data['color'] ?? '#2196F3',
-      noteCount: data['noteCount'] ?? 0,
-      createdAt:
-          data['createdAt'] != null
-              ? (data['createdAt'] as Timestamp).toDate()
-              : DateTime.now(),
-      isFavorite: data['isFavorite'] ?? false,
-    );
   }
 
   FolderModel copyWith({

@@ -4,7 +4,7 @@ import '../widgets/folder_tree_view.dart';
 import '../widgets/create_folder_dialog.dart';
 import '../widgets/move_folder_dialog.dart';
 import '../services/auth_service.dart';
-import '../services/firestore_service.dart';
+import '../services/supabase_service.dart';
 import '../models/note_model.dart';
 import 'edit_note_screen.dart';
 
@@ -18,7 +18,7 @@ class FolderViewScreen extends StatefulWidget {
 
 class _FolderViewScreenState extends State<FolderViewScreen> {
   final AuthService _authService = AuthService();
-  final FirestoreService _firestoreService = FirestoreService();
+  final SupabaseService _supabaseService = SupabaseService.instance;
   FolderModel? _selectedFolder;
 
   @override
@@ -68,10 +68,7 @@ class _FolderViewScreenState extends State<FolderViewScreen> {
 
   Widget _buildNotesForFolder(String userId) {
     return StreamBuilder(
-      stream: _firestoreService.streamNotesByFolder(
-        userId,
-        _selectedFolder?.id,
-      ),
+      stream: _supabaseService.streamNotesByFolder(_selectedFolder?.id),
       builder: (context, snapshot) {
         // Loading state
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -95,7 +92,7 @@ class _FolderViewScreenState extends State<FolderViewScreen> {
         }
 
         // Empty state
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
           return Center(
             child: Padding(
               padding: const EdgeInsets.all(20.0),
@@ -121,10 +118,7 @@ class _FolderViewScreenState extends State<FolderViewScreen> {
         }
 
         // Build notes list
-        final notes =
-            snapshot.data!.docs
-                .map((doc) => NoteModel.fromFirestore(doc))
-                .toList();
+        final notes = snapshot.data!;
 
         return ListView(
           padding: const EdgeInsets.all(16),
@@ -313,29 +307,28 @@ class _FolderViewScreenState extends State<FolderViewScreen> {
   }
 
   Future<void> _showCreateFolderDialog(BuildContext context) async {
-    final userId = _authService.currentUser?.uid ?? '';
-    final folders = await _firestoreService.getFolders(userId);
+    final result = await _supabaseService.getFolders();
 
-    if (context.mounted) {
+    if (context.mounted && result.success && result.data != null) {
       await showDialog(
         context: context,
         builder:
             (context) => CreateFolderDialog(
               parentFolderId: _selectedFolder?.id,
-              allFolders: folders,
+              allFolders: result.data!,
             ),
       );
     }
   }
 
   Future<void> _showMoveNoteDialog(NoteModel note) async {
-    final userId = _authService.currentUser?.uid ?? '';
-    final folders = await _firestoreService.getFolders(userId);
+    final result = await _supabaseService.getFolders();
 
-    if (mounted) {
+    if (mounted && result.success && result.data != null) {
       await showDialog(
         context: context,
-        builder: (context) => MoveFolderDialog(note: note, folders: folders),
+        builder:
+            (context) => MoveFolderDialog(note: note, folders: result.data!),
       );
     }
   }

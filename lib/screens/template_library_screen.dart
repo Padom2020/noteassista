@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
-import '../services/firestore_service.dart';
+import '../services/supabase_service.dart';
 import '../models/template_model.dart';
 import '../widgets/share_template_dialog.dart';
 import '../widgets/import_template_dialog.dart';
@@ -15,7 +15,7 @@ class TemplateLibraryScreen extends StatefulWidget {
 
 class _TemplateLibraryScreenState extends State<TemplateLibraryScreen> {
   final AuthService _authService = AuthService();
-  final FirestoreService _firestoreService = FirestoreService();
+  final SupabaseService _supabaseService = SupabaseService.instance;
   final TextEditingController _searchController = TextEditingController();
 
   List<TemplateModel> _allTemplates = [];
@@ -46,17 +46,35 @@ class _TemplateLibraryScreenState extends State<TemplateLibraryScreen> {
     });
 
     try {
-      final templates = await _firestoreService.getTemplates(userId);
+      final result = await _supabaseService.getTemplates();
 
-      // Sort templates by usage frequency (descending)
-      templates.sort((a, b) => b.usageCount.compareTo(a.usageCount));
+      if (result.success && result.data != null) {
+        final templates = result.data!;
 
-      if (mounted) {
-        setState(() {
-          _allTemplates = templates;
-          _filteredTemplates = templates;
-          _isLoading = false;
-        });
+        // Sort templates by usage frequency (descending)
+        templates.sort((a, b) => b.usageCount.compareTo(a.usageCount));
+
+        if (mounted) {
+          setState(() {
+            _allTemplates = templates;
+            _filteredTemplates = templates;
+            _isLoading = false;
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Error loading templates: ${result.error ?? 'Unknown error'}',
+              ),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -183,16 +201,30 @@ class _TemplateLibraryScreenState extends State<TemplateLibraryScreen> {
     if (userId == null) return;
 
     try {
-      await _firestoreService.deleteTemplate(userId, template.id);
-      await _loadTemplates();
+      final result = await _supabaseService.deleteTemplate(template.id);
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Template deleted successfully'),
-            backgroundColor: Colors.green,
-          ),
-        );
+      if (result.success) {
+        await _loadTemplates();
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Template deleted successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Error deleting template: ${result.error ?? 'Unknown error'}',
+              ),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {

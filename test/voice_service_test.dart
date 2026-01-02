@@ -97,11 +97,11 @@ void main() {
     });
   });
 
-  group('Firebase Storage Integration Tests', () {
-    test('should upload audio files to Firebase Storage', () {
+  group('Cloud Storage Integration Tests', () {
+    test('should upload audio files to cloud storage', () {
       // uploadAudio method handles file upload
       // Path: users/\$userId/notes/\$noteId/audio/\$fileName
-      // Returns download URL for storage in Firestore
+      // Returns download URL for storage in database
       expect(true, isTrue);
     });
 
@@ -121,9 +121,9 @@ void main() {
       expect(true, isTrue);
     });
 
-    test('should delete audio from Firebase Storage', () {
+    test('should delete audio from cloud storage', () {
       // deleteAudio method removes files using URL reference
-      // Uses _storage.refFromURL(audioUrl) to get reference
+      // Uses storage service to get reference
       // Handles cleanup when audio is removed from notes
       expect(true, isTrue);
     });
@@ -307,7 +307,7 @@ void main() {
 
     test('should meet Requirement 27: Audio attachments', () {
       // Supports audio recording with compression
-      // Uploads to Firebase Storage
+      // Uploads to cloud storage
       // Stores URLs in note documents
       // Supports multiple attachments per note
       expect(true, isTrue);

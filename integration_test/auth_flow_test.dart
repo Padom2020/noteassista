@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:noteassista/main.dart' as app;
 import 'package:noteassista/screens/login_screen.dart';
 import 'package:noteassista/screens/home_screen.dart';
@@ -13,9 +13,9 @@ void main() {
     // Clean up after each test
     tearDown(() async {
       try {
-        final auth = FirebaseAuth.instance;
-        if (auth.currentUser != null) {
-          await auth.signOut();
+        final supabase = Supabase.instance.client;
+        if (supabase.auth.currentUser != null) {
+          await supabase.auth.signOut();
         }
       } catch (e) {
         debugPrint('Error during teardown: $e');
@@ -68,7 +68,7 @@ void main() {
       expect(find.text('NoteAssista'), findsOneWidget);
 
       // Verify user is authenticated
-      final user = FirebaseAuth.instance.currentUser;
+      final user = Supabase.instance.client.auth.currentUser;
       expect(user, isNotNull);
       expect(user?.email, testEmail);
     });
@@ -79,11 +79,11 @@ void main() {
       final testEmail = 'test_login_$timestamp@example.com';
       final testPassword = 'password123';
 
-      await FirebaseAuth.instance.createUserWithEmailAndPassword(
+      await Supabase.instance.client.auth.signUp(
         email: testEmail,
         password: testPassword,
       );
-      await FirebaseAuth.instance.signOut();
+      await Supabase.instance.client.auth.signOut();
 
       // Start the app
       app.main();
@@ -113,7 +113,7 @@ void main() {
       expect(find.text('NoteAssista'), findsOneWidget);
 
       // Verify user is authenticated
-      final user = FirebaseAuth.instance.currentUser;
+      final user = Supabase.instance.client.auth.currentUser;
       expect(user, isNotNull);
       expect(user?.email, testEmail);
     });
@@ -156,7 +156,7 @@ void main() {
       expect(find.text('Welcome Back'), findsOneWidget);
 
       // Verify user is NOT authenticated
-      final user = FirebaseAuth.instance.currentUser;
+      final user = Supabase.instance.client.auth.currentUser;
       expect(user, isNull);
     });
   });

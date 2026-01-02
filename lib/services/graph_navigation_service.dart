@@ -1,18 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import '../services/firestore_service.dart';
+import '../services/supabase_service.dart';
+import '../services/auth_service.dart';
 import '../screens/edit_note_screen.dart';
 
 /// Service for handling navigation from the graph view with proper validation and error handling
 class GraphNavigationService {
-  final FirestoreService _firestoreService;
-  final FirebaseAuth _auth;
+  final SupabaseService _supabaseService;
+  final AuthService _authService;
 
   GraphNavigationService({
-    FirestoreService? firestoreService,
-    FirebaseAuth? auth,
-  }) : _firestoreService = firestoreService ?? FirestoreService(),
-       _auth = auth ?? FirebaseAuth.instance;
+    SupabaseService? supabaseService,
+    AuthService? authService,
+  }) : _supabaseService = supabaseService ?? SupabaseService.instance,
+       _authService = authService ?? AuthService();
 
   /// Navigate to a note from the graph view with comprehensive validation
   ///
@@ -46,7 +46,7 @@ class GraphNavigationService {
 
     try {
       // Check authentication first
-      final user = _auth.currentUser;
+      final user = _authService.currentUser;
       if (user == null) {
         debugPrint(
           'GraphNavigationService.navigateToNote: User not authenticated',
@@ -82,8 +82,8 @@ class GraphNavigationService {
       }
 
       // Get the note data
-      final note = await _firestoreService.getNoteById(user.uid, nodeId);
-      if (note == null) {
+      final noteResult = await _supabaseService.getNoteById(nodeId);
+      if (!noteResult.success || noteResult.data == null) {
         debugPrint(
           'GraphNavigationService.navigateToNote: Failed to load note data for: $nodeId',
         );
@@ -92,6 +92,8 @@ class GraphNavigationService {
         }
         return false;
       }
+
+      final note = noteResult.data!;
 
       // Validate note data
       if (note.id.isEmpty || note.title.isEmpty) {
@@ -136,7 +138,7 @@ class GraphNavigationService {
   /// - User ID validation
   /// - Note existence in the database
   /// - User ownership/access permissions
-  Future<bool> validateNoteAccess(String nodeId, User? user) async {
+  Future<bool> validateNoteAccess(String nodeId, dynamic user) async {
     // Input validation
     if (nodeId.isEmpty || nodeId.trim().isEmpty) {
       debugPrint(
@@ -171,13 +173,15 @@ class GraphNavigationService {
       }
 
       // Check if note exists and user has access
-      final note = await _firestoreService.getNoteById(user.uid, nodeId);
-      if (note == null) {
+      final noteResult = await _supabaseService.getNoteById(nodeId);
+      if (!noteResult.success || noteResult.data == null) {
         debugPrint(
           'GraphNavigationService.validateNoteAccess: Note not found or inaccessible for node: $nodeId',
         );
         return false;
       }
+
+      final note = noteResult.data!;
 
       // Additional validation of note data
       if (note.id != nodeId) {
@@ -212,8 +216,8 @@ class GraphNavigationService {
         return false;
       }
 
-      final note = await _firestoreService.getNoteById(userId, nodeId);
-      return note != null;
+      final noteResult = await _supabaseService.getNoteById(nodeId);
+      return noteResult.success && noteResult.data != null;
     } catch (e) {
       debugPrint('Error checking note existence: $e');
       return false;
@@ -257,7 +261,7 @@ class GraphNavigationService {
   /// visible nodes in the graph view
   Future<Map<String, bool>> batchValidateNotes(
     List<String> nodeIds,
-    User? user,
+    dynamic user,
   ) async {
     final results = <String, bool>{};
 
@@ -324,12 +328,12 @@ class GraphNavigationService {
   /// Get current authenticated user
   ///
   /// Provides a centralized way to get the current user with null safety
-  User? getCurrentUser() {
-    return _auth.currentUser;
+  dynamic getCurrentUser() {
+    return _authService.currentUser;
   }
 
   /// Check if user is currently authenticated
-  bool get isAuthenticated => _auth.currentUser != null;
+  bool get isAuthenticated => _authService.currentUser != null;
 
   /// Show error message to user via SnackBar
   void _showErrorSnackBar(BuildContext context, String message) {

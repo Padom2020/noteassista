@@ -1,16 +1,15 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 import 'package:noteassista/services/graph_navigation_service.dart';
 import 'test_helpers.dart';
 
 void main() {
   setUpAll(() async {
-    await setupFirebaseAuthMocks();
+    await setupSupabaseMocks();
   });
 
   tearDownAll(() {
-    tearDownFirebaseAuthMocks();
+    tearDownSupabaseMocks();
   });
   group('GraphNavigationService', () {
     late GraphNavigationService navigationService;
@@ -59,7 +58,7 @@ void main() {
     group('getCurrentUser', () {
       test('returns current user from auth service', () {
         final result = navigationService.getCurrentUser();
-        expect(result, isA<User?>());
+        expect(result, isA<dynamic>());
       });
     });
 

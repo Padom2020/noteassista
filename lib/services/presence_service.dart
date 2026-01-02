@@ -1,7 +1,6 @@
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_database/firebase_database.dart';
-
-/// Service for managing user presence in Firebase Realtime Database
+/// Service for managing user presence in Supabase
+/// NOTE: This is a stub implementation for Firebase-to-Supabase migration
+/// Full presence features will be implemented with Supabase in the future
 ///
 /// Presence data structure:
 /// ```
@@ -15,169 +14,70 @@ import 'package:firebase_database/firebase_database.dart';
 ///       email: string
 /// ```
 class PresenceService {
-  final FirebaseDatabase _database = FirebaseDatabase.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-
-  /// Get reference to presence data for a specific note
-  DatabaseReference _getPresenceRef(String noteId) {
-    return _database.ref('presence/$noteId');
+  /// Set user presence for a note (stub)
+  Future<void> setPresence(String noteId, String status) async {
+    // Stub: do nothing for now
   }
 
-  /// Get reference to current user's presence for a specific note
-  DatabaseReference _getUserPresenceRef(String noteId, String userId) {
-    return _database.ref('presence/$noteId/$userId');
+  /// Remove user presence for a note (stub)
+  Future<void> removePresence(String noteId) async {
+    // Stub: do nothing for now
   }
 
-  /// Initialize presence for current user on a note
-  /// Sets up automatic cleanup on disconnect
+  /// Get presence stream for a note (stub)
+  Stream<Map<String, dynamic>> getPresenceStream(String noteId) {
+    // Return empty stream for now
+    return Stream.value({});
+  }
+
+  /// Update cursor position (stub)
+  Future<void> updateCursorPosition(String noteId, int position) async {
+    // Stub: do nothing for now
+  }
+
+  /// Sets up automatic cleanup on disconnect (stub)
   Future<void> initializePresence(String noteId) async {
-    final user = _auth.currentUser;
-    if (user == null) return;
-
-    final presenceRef = _getUserPresenceRef(noteId, user.uid);
-
-    // Set up disconnect handler to clean up presence when user disconnects
-    await presenceRef.onDisconnect().remove();
-
-    // Set initial presence
-    await presenceRef.set({
-      'status': 'viewing',
-      'cursorPosition': 0,
-      'lastSeen': ServerValue.timestamp,
-      'displayName': user.displayName ?? 'Anonymous',
-      'email': user.email ?? '',
-    });
+    // Stub: do nothing for now
   }
 
-  /// Update user's presence status
+  /// Update user's presence status (stub)
   Future<void> updatePresenceStatus(
     String noteId,
     String status, {
     int? cursorPosition,
   }) async {
-    final user = _auth.currentUser;
-    if (user == null) return;
-
-    final presenceRef = _getUserPresenceRef(noteId, user.uid);
-
-    final updates = <String, dynamic>{
-      'status': status,
-      'lastSeen': ServerValue.timestamp,
-    };
-
-    if (cursorPosition != null) {
-      updates['cursorPosition'] = cursorPosition;
-    }
-
-    await presenceRef.update(updates);
+    // Stub: do nothing for now
   }
 
-  /// Update cursor position for current user
-  Future<void> updateCursorPosition(String noteId, int position) async {
-    final user = _auth.currentUser;
-    if (user == null) return;
-
-    final presenceRef = _getUserPresenceRef(noteId, user.uid);
-
-    await presenceRef.update({
-      'cursorPosition': position,
-      'lastSeen': ServerValue.timestamp,
-    });
-  }
-
-  /// Remove presence when user leaves a note
-  Future<void> removePresence(String noteId) async {
-    final user = _auth.currentUser;
-    if (user == null) return;
-
-    final presenceRef = _getUserPresenceRef(noteId, user.uid);
-    await presenceRef.remove();
-  }
-
-  /// Listen to all active users on a note
+  /// Listen to all active users on a note (stub)
   Stream<Map<String, Map<String, dynamic>>> watchPresence(String noteId) {
-    final presenceRef = _getPresenceRef(noteId);
-
-    return presenceRef.onValue.map((event) {
-      final data = event.snapshot.value;
-
-      if (data == null) {
-        return <String, Map<String, dynamic>>{};
-      }
-
-      // Convert to Map<String, Map<String, dynamic>>
-      final presenceMap = <String, Map<String, dynamic>>{};
-
-      if (data is Map) {
-        data.forEach((key, value) {
-          if (value is Map) {
-            presenceMap[key.toString()] = Map<String, dynamic>.from(value);
-          }
-        });
-      }
-
-      return presenceMap;
-    });
+    // Return empty stream for now
+    return Stream.value(<String, Map<String, dynamic>>{});
   }
 
-  /// Get current active users count on a note
+  /// Get current active users count on a note (stub)
   Future<int> getActiveUsersCount(String noteId) async {
-    final presenceRef = _getPresenceRef(noteId);
-    final snapshot = await presenceRef.get();
-
-    if (!snapshot.exists || snapshot.value == null) {
-      return 0;
-    }
-
-    if (snapshot.value is Map) {
-      return (snapshot.value as Map).length;
-    }
-
+    // Stub: return 0 for now
     return 0;
   }
 
-  /// Clean up stale presence data (users inactive for more than 5 minutes)
+  /// Clean up stale presence data (stub)
   Future<void> cleanupStalePresence(String noteId) async {
-    final presenceRef = _getPresenceRef(noteId);
-    final snapshot = await presenceRef.get();
-
-    if (!snapshot.exists || snapshot.value == null) {
-      return;
-    }
-
-    final now = DateTime.now().millisecondsSinceEpoch;
-    final fiveMinutesAgo = now - (5 * 60 * 1000);
-
-    if (snapshot.value is Map) {
-      final presenceData = snapshot.value as Map;
-
-      for (var entry in presenceData.entries) {
-        final userId = entry.key.toString();
-        final userData = entry.value;
-
-        if (userData is Map && userData['lastSeen'] != null) {
-          final lastSeen = userData['lastSeen'] as int;
-
-          if (lastSeen < fiveMinutesAgo) {
-            await _getUserPresenceRef(noteId, userId).remove();
-          }
-        }
-      }
-    }
+    // Stub: do nothing for now
   }
 
-  /// Mark user as away after period of inactivity
+  /// Mark user as away after period of inactivity (stub)
   Future<void> markAsAway(String noteId) async {
-    await updatePresenceStatus(noteId, 'away');
+    // Stub: do nothing for now
   }
 
-  /// Mark user as viewing
+  /// Mark user as viewing (stub)
   Future<void> markAsViewing(String noteId) async {
-    await updatePresenceStatus(noteId, 'viewing');
+    // Stub: do nothing for now
   }
 
-  /// Mark user as editing
+  /// Mark user as editing (stub)
   Future<void> markAsEditing(String noteId) async {
-    await updatePresenceStatus(noteId, 'editing');
+    // Stub: do nothing for now
   }
 }

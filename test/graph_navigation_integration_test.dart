@@ -6,11 +6,11 @@ import 'test_helpers.dart';
 
 void main() {
   setUpAll(() async {
-    await setupFirebaseAuthMocks();
+    await setupSupabaseMocks();
   });
 
   tearDownAll(() {
-    tearDownFirebaseAuthMocks();
+    tearDownSupabaseMocks();
   });
   group('GraphNavigationService Integration', () {
     testWidgets('handleNavigationError shows appropriate error messages', (

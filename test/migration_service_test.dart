@@ -4,7 +4,7 @@ void main() {
   group('MigrationService', () {
     test('Migration service exists and can be imported', () {
       // This is a placeholder test to verify the migration service compiles
-      // Real migration testing would require Firebase emulator or integration tests
+      // Real migration testing would require integration tests
       expect(true, true);
     });
 

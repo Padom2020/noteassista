@@ -143,8 +143,7 @@ class _SmartSearchBarState extends State<SmartSearchBar>
         return;
       }
 
-      final searchQuery = _searchService.parseQuery(query);
-      final results = await _searchService.search(userId, searchQuery);
+      final results = await _searchService.searchNotes(userId, query);
 
       setState(() {
         _searchResults = results;

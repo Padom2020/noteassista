@@ -1,22 +1,22 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:noteassista/services/firestore_service.dart';
+import 'package:noteassista/services/supabase_service.dart';
 import 'package:noteassista/models/template_model.dart';
 import 'test_helpers.dart';
 
 void main() {
   setUpAll(() async {
-    await setupFirebaseAuthMocks();
+    await setupSupabaseMocks();
   });
 
   tearDownAll(() {
-    tearDownFirebaseAuthMocks();
+    tearDownSupabaseMocks();
   });
   group('Template Sharing Tests', () {
-    late FirestoreService firestoreService;
+    late SupabaseService supabaseService;
     late TemplateModel testTemplate;
 
     setUp(() {
-      firestoreService = FirestoreService();
+      supabaseService = SupabaseService.instance;
       testTemplate = TemplateModel(
         id: 'test-id',
         name: 'Test Template',
@@ -57,46 +57,52 @@ This is a test template with variables:
 
     test('should export template to JSON format', () {
       // Act
-      final jsonString = firestoreService.exportTemplate(testTemplate);
+      final result = supabaseService.exportTemplate(testTemplate);
 
       // Assert
-      expect(jsonString, isNotEmpty);
-      expect(jsonString, contains('"version":"1.0"'));
-      expect(jsonString, contains('"name":"Test Template"'));
+      expect(result.success, isTrue);
+      expect(result.data, isNotEmpty);
+      expect(result.data!, contains('"version":"1.0"'));
+      expect(result.data!, contains('"name":"Test Template"'));
       expect(
-        jsonString,
+        result.data!,
         contains('"description":"A test template for sharing"'),
       );
-      expect(jsonString, contains('"variables"'));
-      expect(jsonString, contains('"exportedAt"'));
+      expect(result.data!, contains('"variables"'));
+      expect(result.data!, contains('"exportedAt"'));
     });
 
     test('should validate correct template JSON', () {
       // Arrange
-      final jsonString = firestoreService.exportTemplate(testTemplate);
+      final exportResult = supabaseService.exportTemplate(testTemplate);
+      expect(exportResult.success, isTrue);
 
       // Act
-      final result = firestoreService.validateImportedTemplate(jsonString);
+      final result = supabaseService.validateImportedTemplate(
+        exportResult.data!,
+      );
 
       // Assert
-      expect(result, isNotNull);
-      expect(result!['template']['name'], equals('Test Template'));
+      expect(result.success, isTrue);
+      expect(result.data, isNotNull);
+      expect(result.data!['template']['name'], equals('Test Template'));
       expect(
-        result['template']['description'],
+        result.data!['template']['description'],
         equals('A test template for sharing'),
       );
-      expect(result['template']['variables'], isA<List>());
+      expect(result.data!['template']['variables'], isA<List>());
     });
 
     test('should reject invalid JSON format', () {
       // Arrange
       const invalidJson = 'invalid json string';
 
-      // Act & Assert
-      expect(
-        () => firestoreService.validateImportedTemplate(invalidJson),
-        throwsA(isA<Exception>()),
-      );
+      // Act
+      final result = supabaseService.validateImportedTemplate(invalidJson);
+
+      // Assert
+      expect(result.success, isFalse);
+      expect(result.error, isNotNull);
     });
 
     test('should reject template without required fields', () {
@@ -110,11 +116,14 @@ This is a test template with variables:
       }
       ''';
 
-      // Act & Assert
-      expect(
-        () => firestoreService.validateImportedTemplate(incompleteTemplate),
-        throwsA(isA<Exception>()),
+      // Act
+      final result = supabaseService.validateImportedTemplate(
+        incompleteTemplate,
       );
+
+      // Assert
+      expect(result.success, isFalse);
+      expect(result.error, isNotNull);
     });
 
     test('should reject template with empty name', () {
@@ -130,11 +139,14 @@ This is a test template with variables:
       }
       ''';
 
-      // Act & Assert
-      expect(
-        () => firestoreService.validateImportedTemplate(emptyNameTemplate),
-        throwsA(isA<Exception>()),
+      // Act
+      final result = supabaseService.validateImportedTemplate(
+        emptyNameTemplate,
       );
+
+      // Assert
+      expect(result.success, isFalse);
+      expect(result.error, isNotNull);
     });
 
     test('should validate template with variables', () {
@@ -158,14 +170,18 @@ This is a test template with variables:
       ''';
 
       // Act
-      final result = firestoreService.validateImportedTemplate(
+      final result = supabaseService.validateImportedTemplate(
         templateWithVariables,
       );
 
       // Assert
-      expect(result, isNotNull);
-      expect(result!['template']['variables'], hasLength(1));
-      expect(result['template']['variables'][0]['name'], equals('variable'));
+      expect(result.success, isTrue);
+      expect(result.data, isNotNull);
+      expect(result.data!['template']['variables'], hasLength(1));
+      expect(
+        result.data!['template']['variables'][0]['name'],
+        equals('variable'),
+      );
     });
 
     test('should reject template with invalid variables', () {
@@ -186,12 +202,14 @@ This is a test template with variables:
       }
       ''';
 
-      // Act & Assert
-      expect(
-        () =>
-            firestoreService.validateImportedTemplate(invalidVariablesTemplate),
-        throwsA(isA<Exception>()),
+      // Act
+      final result = supabaseService.validateImportedTemplate(
+        invalidVariablesTemplate,
       );
+
+      // Assert
+      expect(result.success, isFalse);
+      expect(result.error, isNotNull);
     });
 
     test('should handle template without variables', () {
@@ -208,30 +226,42 @@ This is a test template with variables:
       ''';
 
       // Act
-      final result = firestoreService.validateImportedTemplate(
+      final result = supabaseService.validateImportedTemplate(
         templateWithoutVariables,
       );
 
       // Assert
-      expect(result, isNotNull);
-      expect(result!['template']['name'], equals('Simple Template'));
+      expect(result.success, isTrue);
+      expect(result.data, isNotNull);
+      expect(result.data!['template']['name'], equals('Simple Template'));
     });
 
     test('should export and validate round trip', () {
       // Act
-      final exported = firestoreService.exportTemplate(testTemplate);
-      final validated = firestoreService.validateImportedTemplate(exported);
+      final exportResult = supabaseService.exportTemplate(testTemplate);
+      expect(exportResult.success, isTrue);
+
+      final validationResult = supabaseService.validateImportedTemplate(
+        exportResult.data!,
+      );
 
       // Assert
-      expect(validated, isNotNull);
-      expect(validated!['template']['name'], equals(testTemplate.name));
+      expect(validationResult.success, isTrue);
+      expect(validationResult.data, isNotNull);
       expect(
-        validated['template']['description'],
+        validationResult.data!['template']['name'],
+        equals(testTemplate.name),
+      );
+      expect(
+        validationResult.data!['template']['description'],
         equals(testTemplate.description),
       );
-      expect(validated['template']['content'], equals(testTemplate.content));
       expect(
-        validated['template']['variables'],
+        validationResult.data!['template']['content'],
+        equals(testTemplate.content),
+      );
+      expect(
+        validationResult.data!['template']['variables'],
         hasLength(testTemplate.variables.length),
       );
     });
