@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleDisplayName</key>
+	<string>Noteassista</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>noteassista</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(FLUTTER_BUILD_NAME)</string>
+	<key>CFBundleSignature</key>
+	<string>????</string>
+	<key>CFBundleVersion</key>
+	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
+	<key>UIMainStoryboardFile</key>
+	<string>Main</string>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
+	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<true/>
+	
+	<!-- Microphone permission for voice-to-text and audio recording -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>NoteAssista needs access to your microphone to record voice notes and convert speech to text.</string>
+	
+	<!-- Camera permission for image capture and OCR -->
+	<key>NSCameraUsageDescription</key>
+	<string>NoteAssista needs access to your camera to capture images and extract text from documents.</string>
+	
+	<!-- Photo library permission -->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>NoteAssista needs access to your photo library to attach images to your notes.</string>
+	
+	<!-- Location permissions for location-based reminders -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>NoteAssista needs access to your location to set location-based reminders.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>NoteAssista needs access to your location to trigger reminders when you arrive at or leave specific locations.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>NoteAssista needs access to your location to trigger reminders when you arrive at or leave specific locations.</string>
+	
+	<!-- Speech recognition permission -->
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>NoteAssista needs access to speech recognition to convert your voice to text.</string>
+	
+	<!-- URL types for handling shared URLs -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.noteassista.app</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>noteassista</string>
+			</array>
+		</dict>
+	</array>
+	
+	<!-- Share extension configuration for web URLs -->
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Web URL</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.url</string>
+				<string>public.text</string>
+			</array>
+		</dict>
+	</array>
+	
+	<!-- App Groups for share extension -->
+	<key>NSExtension</key>
+	<dict>
+		<key>NSExtensionAttributes</key>
+		<dict>
+			<key>NSExtensionActivationRule</key>
+			<string>TRUEPREDICATE</string>
+			<key>NSExtensionActivationSupportsText</key>
+			<true/>
+			<key>NSExtensionActivationSupportsWebURLWithMaxCount</key>
+			<integer>1</integer>
+		</dict>
+	</dict>
+</dict>
+</plist>

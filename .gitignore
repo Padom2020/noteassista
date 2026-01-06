@@ -1,0 +1,245 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# Android local properties
+android/local.properties
+android/.gradle/
+android/.kotlin/
+
+# iOS/macOS
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+macos/Pods/
+macos/.symlinks/
+
+# Web
+web/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+.env.production
+.env.development
+.env.staging
+.env.test
+.env.*.example
+!.env.example
+
+# IDE
+.vscode/
+*.code-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Additional sensitive files and configurations
+# API Keys and secrets
+lib/config/api_keys.dart
+lib/config/secrets.dart
+lib/config/*_config.dart
+lib/config/cloudinary_config.dart
+lib/config/firebase_config.dart
+lib/config/supabase_config.dart
+lib/constants/secrets.dart
+lib/constants/api_keys.dart
+*.key
+*.pem
+*.p12
+*.keystore
+*.jks
+key.properties
+google-services.json
+GoogleService-Info.plist
+
+# Cloud service configurations
+**/cloudinary_config.dart
+**/aws_config.dart
+**/supabase_config.dart
+**/firebase_config.dart
+**/stripe_config.dart
+**/twilio_config.dart
+
+# Private keys and certificates
+*.private.key
+*.private.pem
+private_key.json
+service_account.json
+credentials.json
+
+# Database and storage
+*.db
+*.sqlite
+*.sqlite3
+*.realm
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+logs/
+temp/
+debug.log
+
+# Build and cache directories
+coverage/
+.nyc_output/
+node_modules/
+.gradle/
+.kotlin/
+
+# Platform-specific generated files
+linux/flutter/generated_*
+macos/Flutter/Generated*
+windows/flutter/generated_*
+android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java
+
+# Configuration cache and reports
+android/build/reports/
+android/.gradle/
+**/configuration-cache/
+pubspec.lock
+
+# Reserved device names (Windows)
+nul
+con
+prn
+aux
+com[1-9]
+lpt[1-9]
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# IDE and editor files
+.vscode/settings.json
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/dictionaries/
+.idea/shelf/
+
+# Test coverage
+coverage/
+test_coverage/
+lcov.info
+# Sens
+itive configuration files
+*.secret
+*.secrets
+*_secret.dart
+*_secrets.dart
+config.secret.json
+secrets.json
+.secrets/
+secrets/
+
+# Authentication tokens and credentials
+.auth/
+.credentials/
+auth_token.txt
+refresh_token.txt
+access_token.txt
+
+# API documentation with sensitive info
+docs/api_keys.md
+docs/secrets.md
+
+# Backup and temporary sensitive files
+*.backup.dart
+*.bak.dart
+config.backup.json
+secrets.backup.json
+
+# IDE-specific sensitive files
+.vscode/settings.local.json
+.idea/vcs.xml
+.idea/runConfigurations/
+
+# OS-specific sensitive files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Firebase and Google Cloud
+firebase-debug.log
+.firebaserc
+firebase-key.json
+
+# AWS
+.aws/
+aws_credentials.json
+
+# Supabase
+supabase_key.json
+supabase_secret.json
+
+# Stripe
+stripe_key.json
+stripe_secret.json
+
+# Other third-party service keys
+*_api_key.json
+*_secret_key.json
+*_access_key.json
+*_private_key.json
+
+# Kiro-specific secrets and configurations
+.kiro/settings/secrets.json
+.kiro/settings/*_config.json
+.kiro/settings/mcp.json
+
+# Local development overrides
+lib/config/local_*.dart
+lib/constants/local_*.dart
+
+# Test fixtures with real data
+test/fixtures/real_*.json
+test/fixtures/*_credentials.json
