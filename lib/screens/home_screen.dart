@@ -96,7 +96,12 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 Icon(Icons.celebration, color: Colors.amber),
                 SizedBox(width: 12),
-                Text('Welcome to NoteAssista!'),
+                Expanded(
+                  child: Text(
+                    'Welcome to NoteAssista!',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ],
             ),
             content: SingleChildScrollView(
